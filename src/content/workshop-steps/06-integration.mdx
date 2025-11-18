@@ -1,0 +1,674 @@
+---
+title: "Orchestrator Agent"
+description: "Build the brain of your multi-agent system"
+duration: "75 minutes"
+difficulty: "Advanced"
+objectives:
+  - "Implement intent parsing with Gemini"
+  - "Build task routing logic"
+  - "Orchestrate multi-step workflows"
+---
+
+import { CodeBlock } from '@/components/workshop/CodeBlock';
+import { Exercise } from '@/components/workshop/Exercise';
+import { Hint } from '@/components/workshop/Hint';
+import { Checkpoint } from '@/components/workshop/Checkpoint';
+import { TestButton } from '@/components/workshop/TestButton';
+
+## Overview
+
+The **Orchestrator Agent** is the brain of your multi-agent system. It coordinates complex workflows by:
+1. **Parsing intents** - Understanding user queries with Gemini
+2. **Routing tasks** - Directing work to specialized agents (Analytics, Report)
+3. **Orchestrating workflows** - Coordinating multi-step operations (analytics → report → email)
+
+In this tutorial, you'll build the complete orchestrator from scratch!
+
+## Architecture
+
+<CodeBlock language="typescript" code={`// High-level flow
+User Query → parseIntent() → routeTask() → handleMultiStepQuery()
+              ↓               ↓              ↓
+           Gemini AI     Agent Type    Analytics → Report → Email`} />
+
+## Key Concepts
+
+### Intent Classification
+The orchestrator classifies user queries into four intent types:
+- **analytics** - Data queries (revenue, top products, user behavior)
+- **report** - Report generation requests
+- **email** - Email sending requests
+- **multi_step** - Complex queries requiring multiple agents
+
+### Entity Extraction
+From natural language, extract:
+- **query_type** - Which analytics query to run
+- **time_range** - Time period (if specified)
+- **recipient** - Email address (if specified)
+
+### Supported Query Types
+- `revenue` - Total revenue, purchases, customer metrics
+- `top_products` - Best-selling products with revenue data
+- `user_behavior` - Event counts and user engagement
+- `category_performance` - Performance by product category
+- `brand_analysis` - Performance by brand
+
+## Exercise 1: Implement parseIntent with Gemini
+
+Let's build the `parseIntent` method that uses Gemini to analyze user queries.
+
+<Exercise title="Implement intent parsing with Gemini">
+
+Open `src/lib/agents/orchestrator.ts` and implement the `parseIntent` method.
+
+**Requirements:**
+1. Use Gemini to analyze the user query
+2. Return structured JSON with: `intent`, `entities`, and `confidence`
+3. Handle all 4 intent types and 5 query types
+4. Extract time ranges and email addresses from queries
+5. Parse JSON from Gemini's response (handle code blocks)
+
+**Prompt Structure:**
+- Explain the system capabilities
+- Provide the user query
+- Request JSON response format
+- Give examples for each intent type
+
+**Example queries to handle:**
+- "Show me revenue" → `{intent: "analytics", entities: {query_type: "revenue"}}`
+- "Generate report and email to john@example.com" → `{intent: "multi_step", entities: {recipient: "john@example.com"}}`
+- "Top selling products" → `{intent: "analytics", entities: {query_type: "top_products"}}`
+
+<Hint title="Full implementation (click to reveal)">
+<CodeBlock language="typescript" code={`async parseIntent(userQuery: string): Promise<IntentResult> {
+  const prompt = \`
+  Analyze this user query and classify the intent for an ecommerce analytics system:
+  Query: "\${userQuery}"
+  
+  Context: The system can:
+  - Run analytics queries (revenue, top products, user behavior, category/brand analysis)
+  - Generate reports (summary or financial)
+  - Send emails with reports
+  - Handle multi-step queries that combine the above
+  
+  Respond in JSON format:
+  {
+    "intent": "analytics" | "report" | "email" | "multi_step",
+    "entities": {
+      "query_type": "revenue|top_products|user_behavior|category_performance|brand_analysis",
+      "time_range": "time period if specified",
+      "recipient": "email address if specified"
+    },
+    "confidence": 0.0 to 1.0
+  }
+  
+  Examples:
+  - "Show me revenue" -> intent: analytics, query_type: revenue
+  - "Top selling products" -> intent: analytics, query_type: top_products
+  - "Generate report and email to john@example.com" -> intent: multi_step, recipient: john@example.com
+  - "How are users behaving?" -> intent: analytics, query_type: user_behavior
+  - "Best performing brands" -> intent: analytics, query_type: brand_analysis
+  \`;
+  
+  const result = await this.model.generateContent(prompt);
+  const responseText = result.response.text();
+  
+  // Clean up the response to extract JSON
+  const jsonMatch = responseText.match(/\\{[\\s\\S]*\\}/);
+  if (!jsonMatch) {
+    throw new Error('Failed to parse intent from Gemini response');
+  }
+  
+  return JSON.parse(jsonMatch[0]);
+}`} />
+</Hint>
+
+**Key implementation details:**
+- Use `this.model.generateContent()` for Gemini API call
+- Use regex `/{[\s\S]*}/` to extract JSON from markdown code blocks
+- Throw error if JSON parsing fails
+- Return typed `IntentResult` object
+
+</Exercise>
+
+## Exercise 2: Implement Task Routing
+
+Build the `routeTask` method that maps intents to agent types.
+
+<Exercise title="Implement task routing logic">
+
+Implement the `routeTask` method in `src/lib/agents/orchestrator.ts`.
+
+**Requirements:**
+1. Take an `IntentResult` as input
+2. Map intent to appropriate `AgentType`
+3. Return `'analytics'`, `'report'`, `'email'`, or `'unknown'`
+
+**Routing rules:**
+- `intent: 'analytics'` → `'analytics'` agent
+- `intent: 'report'` → `'report'` agent
+- `intent: 'email'` → `'email'` agent
+- Anything else → `'unknown'`
+
+<Hint title="Full implementation (click to reveal)">
+<CodeBlock language="typescript" code={`routeTask(intent: IntentResult): AgentType {
+  if (intent.intent === 'analytics') return 'analytics';
+  if (intent.intent === 'report') return 'report';
+  if (intent.intent === 'email') return 'email';
+  return 'unknown';
+}`} />
+</Hint>
+
+**Note:** For `multi_step` intents, we use `handleMultiStepQuery()` instead of routing to a single agent.
+
+</Exercise>
+
+<Checkpoint items={[
+  "parseIntent uses Gemini to analyze natural language queries",
+  "Intent parsing returns structured JSON with intent, entities, confidence",
+  "JSON extraction handles Gemini's markdown code blocks",
+  "routeTask maps intents to correct agent types",
+  "Error handling throws descriptive errors for parsing failures"
+]} />
+
+## Exercise 3: Implement Multi-Step Orchestration
+
+Now for the main event: orchestrating complex workflows that coordinate multiple agents!
+
+<Exercise title="Implement handleMultiStepQuery method">
+
+Implement the `handleMultiStepQuery` method that orchestrates analytics → report → email workflows.
+
+**Requirements:**
+
+**1. Intent Detection (Regex Patterns):**
+- Detect revenue queries: `/revenue|sales|income|earnings|money/`
+- Detect top products: `/top\s+products|best\s+sellers?|popular\s+items|trending/`
+- Detect user behavior: `/user\s+behavior|customer\s+behavior|engagement/`
+- Detect category analysis: `/categor(y|ies)|category\s+performance/`
+- Detect brand analysis: `/brand(s)?|brand\s+performance/`
+- Detect reports: `/report|summary|generate|create\s+report/`
+- Extract email: `/[\w.-]+@[\w.-]+\.[a-z]{2,}/`
+
+**2. Step Tracking:**
+- Create a `steps` array to track each operation
+- Each step has: `step`, `action`, `output`, `status`
+
+**3. Sequential Execution:**
+- **Step 1: Analytics** - Execute the detected query type
+- **Step 2: Report** - Generate report if requested or email is present
+- **Step 3: Email** - Send email if recipient is specified
+
+**4. Report Type Selection:**
+- Use `'financial'` for: revenue, category_performance, brand_analysis
+- Use `'summary'` for: top_products, user_behavior
+
+**5. Email Subject Mapping:**
+- Map query types to appropriate email subjects
+
+**6. Error Handling:**
+- Wrap everything in try-catch
+- On error, add error step with status 'failed'
+- Return success: false with error details
+
+<Hint title="Full implementation (click to reveal)">
+<CodeBlock language="typescript" code={`async handleMultiStepQuery(userQuery: string) {
+  const steps: any[] = [];
+  const lower = userQuery.toLowerCase();
+  
+  // Extract intent signals
+  const hasRevenue = /revenue|sales|income|earnings|money/.test(lower);
+  const hasTopProducts = /top\\s+products|best\\s+sellers?|popular\\s+items|trending/.test(lower);
+  const hasUserBehavior = /user\\s+behavior|customer\\s+behavior|user\\s+activity|engagement/.test(lower);
+  const hasCategoryAnalysis = /categor(y|ies)|product\\s+categories|category\\s+performance/.test(lower);
+  const hasBrandAnalysis = /brand(s)?|brand\\s+performance|brand\\s+analysis/.test(lower);
+  const hasReport = /report|summary|generate|create\\s+report/.test(lower);
+  const recipientMatch = lower.match(/[\\w.-]+@[\\w.-]+\\.[a-z]{2,}/);
+  const recipient = recipientMatch?.[0];
+
+  try {
+    let analyticsResult: any;
+    let queryType: string = '';
+    
+    // Step 1: Analytics query based on detected intent
+    if (hasRevenue) {
+      queryType = 'revenue';
+    } else if (hasTopProducts) {
+      queryType = 'top_products';
+    } else if (hasUserBehavior) {
+      queryType = 'user_behavior';
+    } else if (hasCategoryAnalysis) {
+      queryType = 'category_performance';
+    } else if (hasBrandAnalysis) {
+      queryType = 'brand_analysis';
+    }
+    
+    if (queryType) {
+      const analytics = new AnalyticsAgent();
+      analyticsResult = await analytics.executeQuery(queryType);
+      steps.push({ 
+        step: 'analytics', 
+        action: \`\${queryType}_query\`,
+        output: analyticsResult,
+        status: 'completed'
+      });
+      
+      // Step 2: Generate report if requested or if email is needed
+      if (hasReport || recipient) {
+        const geminiKey = process.env.GEMINI_API_KEY;
+        if (!geminiKey) {
+          throw new Error('GEMINI_API_KEY environment variable is required for report generation');
+        }
+        
+        const reportAgent = new ReportAgent(geminiKey);
+        
+        // Determine report type based on query
+        const reportType = hasRevenue || hasCategoryAnalysis || hasBrandAnalysis 
+          ? 'financial' 
+          : 'summary';
+        
+        let report: string;
+        if (reportType === 'financial') {
+          report = await reportAgent.generateFinancialReport(analyticsResult);
+        } else {
+          report = await reportAgent.generateReport(analyticsResult, 'summary');
+        }
+        
+        steps.push({ 
+          step: 'report', 
+          action: \`generate_\${reportType}_report\`,
+          output: report,
+          status: 'completed'
+        });
+        
+        // Step 3: Send email if recipient is specified
+        if (recipient) {
+          const subjectMap: Record<string, string> = {
+            revenue: 'Revenue Analysis Report',
+            top_products: 'Top Products Performance Report',
+            user_behavior: 'User Behavior Insights Report',
+            category_performance: 'Category Performance Report',
+            brand_analysis: 'Brand Analysis Report'
+          };
+          
+          const subject = subjectMap[queryType] || 'Analytics Report';
+          const emailSent = await reportAgent.sendEmail(recipient, subject, report);
+          
+          steps.push({ 
+            step: 'email', 
+            action: 'send_report',
+            output: { 
+              recipient, 
+              subject,
+              sent: emailSent,
+              sandbox: true
+            },
+            status: emailSent ? 'completed' : 'failed'
+          });
+        }
+      }
+    }
+    
+    return {
+      success: true,
+      totalSteps: steps.length,
+      steps
+    };
+  } catch (error) {
+    steps.push({
+      step: 'error',
+      action: 'orchestration_failed',
+      output: error instanceof Error ? error.message : 'Unknown error',
+      status: 'failed'
+    });
+    
+    return {
+      success: false,
+      totalSteps: steps.length,
+      steps,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+  }
+}`} />
+</Hint>
+
+**Test queries:**
+- "Show revenue and send report to alice@example.com"
+- "Top selling products and email to manager@company.com"
+- "Generate a financial report for brand analysis"
+- "Analyze user behavior and send summary report"
+
+</Exercise>
+
+## Exercise 4: Build the Orchestrator API Route
+
+Create the API endpoint that exposes the orchestrator.
+
+<Exercise title="Implement the Orchestrator API route">
+
+Open `src/app/api/orchestrator/route.ts` and implement both POST and GET endpoints.
+
+**POST endpoint requirements:**
+1. Extract `query` and `action` from request body
+2. Validate that `query` is provided
+3. Validate `GEMINI_API_KEY` is configured
+4. Support two actions:
+   - `'parse'` - Just parse intent and route
+   - `'execute'` or `'multi_step'` - Execute full workflow
+5. Return appropriate JSON responses
+
+**GET endpoint requirements:**
+1. Return capabilities documentation
+2. List supported actions and intents
+3. Provide example queries
+
+<Hint title="Full implementation (click to reveal)">
+<CodeBlock language="typescript" code={`import { NextRequest, NextResponse } from 'next/server';
+import { OrchestratorAgent } from '@/lib/agents/orchestrator';
+
+export async function POST(request: NextRequest) {
+  try {
+    const { query, action = 'parse' } = await request.json();
+    
+    if (!query) {
+      return NextResponse.json(
+        { error: 'query parameter is required' }, 
+        { status: 400 }
+      );
+    }
+    
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey || apiKey === 'your_api_key_here') {
+      return NextResponse.json(
+        { 
+          error: 'GEMINI_API_KEY not configured. Please set it in your .env file.',
+          hint: 'Get your API key from https://aistudio.google.com'
+        }, 
+        { status: 500 }
+      );
+    }
+    
+    const orchestrator = new OrchestratorAgent(apiKey);
+    
+    // Support both intent parsing and multi-step execution
+    if (action === 'execute' || action === 'multi_step') {
+      const result = await orchestrator.handleMultiStepQuery(query);
+      return NextResponse.json({
+        action: 'multi_step_execution',
+        query,
+        ...result
+      });
+    }
+    
+    // Default: parse intent and route
+    const intent = await orchestrator.parseIntent(query);
+    const route = orchestrator.routeTask(intent);
+    
+    return NextResponse.json({ 
+      success: true,
+      action: 'intent_parsing',
+      query,
+      intent, 
+      route 
+    });
+  } catch (error: any) {
+    console.error('Orchestrator API error:', error);
+    return NextResponse.json(
+      { 
+        success: false,
+        error: error?.message ?? 'Unknown error',
+        details: process.env.NODE_ENV === 'development' ? error?.stack : undefined
+      }, 
+      { status: 500 }
+    );
+  }
+}
+
+// Add GET endpoint for capabilities
+export async function GET() {
+  return NextResponse.json({
+    capabilities: {
+      actions: ['parse', 'execute', 'multi_step'],
+      supportedIntents: ['analytics', 'report', 'email', 'multi_step'],
+      features: [
+        'Natural language query parsing',
+        'Multi-agent orchestration',
+        'Email delivery with reports',
+        'Complex workflow execution'
+      ]
+    },
+    examples: [
+      {
+        query: 'Show me revenue for the last 30 days',
+        action: 'parse',
+        description: 'Parse intent and determine routing'
+      },
+      {
+        query: 'Generate a revenue report and email it to user@example.com',
+        action: 'execute',
+        description: 'Execute multi-step workflow'
+      }
+    ]
+  });
+}`} />
+</Hint>
+
+**Test your API:**
+```bash
+# Get capabilities
+curl http://localhost:3000/api/orchestrator
+
+# Parse intent only
+curl -X POST http://localhost:3000/api/orchestrator \
+  -H "Content-Type: application/json" \
+  -d '{"query": "Show me revenue", "action": "parse"}'
+
+# Execute multi-step workflow
+curl -X POST http://localhost:3000/api/orchestrator \
+  -H "Content-Type: application/json" \
+  -d '{"query": "Show revenue and email to test@example.com", "action": "execute"}'
+```
+
+</Exercise>
+
+<Checkpoint items={[
+  "handleMultiStepQuery detects all 5 query types using regex",
+  "Steps are tracked in order with status (completed/failed)",
+  "Analytics agent is called and results are captured",
+  "Report agent generates financial or summary reports based on query type",
+  "Email is sent when recipient is detected in query",
+  "Error handling adds error step and returns success: false",
+  "API route supports both 'parse' and 'execute' actions",
+  "API validates GEMINI_API_KEY before processing"
+]} />
+
+## Understanding the Integration Flow
+
+Let's trace a complete workflow through the system:
+
+### Example: "Show revenue and send report to alice@example.com"
+
+<CodeBlock language="typescript" code={`// Step 1: API receives request
+POST /api/orchestrator
+{ query: "Show revenue and send report to alice@example.com", action: "execute" }
+
+// Step 2: Orchestrator detects intents
+hasRevenue = true  // matches /revenue/
+hasReport = true   // matches /report/
+recipient = "alice@example.com"  // matches email regex
+
+// Step 3: Execute analytics query
+const analytics = new AnalyticsAgent();
+const result = await analytics.executeQuery('revenue');
+// → { total_revenue: 1234567, total_purchases: 8542, ... }
+
+// Step 4: Generate financial report
+const reportAgent = new ReportAgent(apiKey);
+const report = await reportAgent.generateFinancialReport(result);
+// → "Executive Summary: Total revenue of $1.23M from 8,542 purchases..."
+
+// Step 5: Send email
+await reportAgent.sendEmail(
+  "alice@example.com",
+  "Revenue Analysis Report",
+  report
+);
+// → Email preview logged to console (sandbox mode)
+
+// Step 6: Return complete workflow result
+return {
+  success: true,
+  totalSteps: 3,
+  steps: [
+    { step: 'analytics', action: 'revenue_query', status: 'completed' },
+    { step: 'report', action: 'generate_financial_report', status: 'completed' },
+    { step: 'email', action: 'send_report', status: 'completed' }
+  ]
+}`} />
+
+## Error Handling & Resilience
+
+### Rate Limiting with Gemini Free Tier
+
+Gemini's free tier has a 15 RPM limit. Handle it with retries and rate limiting:
+
+<CodeBlock language="typescript" code={`import { withRetry, createRateLimiter } from '@/lib/utils/error-handler';
+
+// Create rate limiter (15 requests per minute)
+const rateLimiter = createRateLimiter(15);
+
+// Wrap Gemini calls with retry logic
+async parseIntent(userQuery: string): Promise<IntentResult> {
+  await rateLimiter.removeToken(); // Wait if rate limit reached
+  
+  const result = await withRetry(
+    () => this.model.generateContent(prompt),
+    {
+      retries: 3,
+      initialDelayMs: 500,
+      maxDelayMs: 5000,
+      onRetry: (attempt, error) => {
+        console.log(\`Retry attempt \${attempt}:\`, error);
+      }
+    }
+  );
+  
+  // ... parse response
+}`} />
+
+### Handling GEMINI_API_KEY Errors
+
+<CodeBlock language="typescript" code={`constructor(apiKey: string) {
+  if (!apiKey || apiKey === 'your_api_key_here') {
+    throw new Error('Valid GEMINI_API_KEY is required for OrchestratorAgent');
+  }
+  
+  this.apiKey = apiKey;
+  const genAI = new GoogleGenerativeAI(apiKey);
+  this.model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+}`} />
+
+## Test
+
+<TestButton label="Test Orchestrator End-to-End" message="Use the Orchestrator Demo to test complex multi-step queries!" />
+
+**Complete test checklist:**
+
+**Intent Parsing:**
+- ✅ "Show me revenue" → analytics intent, revenue query_type
+- ✅ "Top selling products" → analytics intent, top_products query_type
+- ✅ "Generate report" → report intent
+- ✅ "Email to user@test.com" → email intent with recipient
+
+**Multi-Step Execution:**
+- ✅ "Show revenue and send report to alice@example.com" → 3 steps
+- ✅ "Top products and email to manager@company.com" → 3 steps
+- ✅ "Generate financial report for brand analysis" → 2 steps
+- ✅ "Analyze user behavior" → 1 step
+
+**Error Handling:**
+- ✅ Invalid GEMINI_API_KEY returns 500 error
+- ✅ Missing query parameter returns 400 error
+- ✅ Gemini parsing failure throws descriptive error
+
+**Email Preview:**
+- ✅ Open browser console (F12)
+- ✅ Check for "📧 Email Preview (Sandbox Mode)" output
+- ✅ Verify recipient, subject, and body are logged
+
+## Advanced: Extending the Orchestrator
+
+### Add Time Range Extraction
+
+<CodeBlock language="typescript" code={`// In handleMultiStepQuery, extract time ranges
+const timeMatch = lower.match(/(last|past)\\s+(\\d+)\\s+(days?|weeks?|months?)/);
+if (timeMatch) {
+  const amount = parseInt(timeMatch[2]);
+  const unit = timeMatch[3];
+  // Pass to analytics query with custom time range
+}`} />
+
+### Add Multiple Email Recipients
+
+<CodeBlock language="typescript" code={`// Support comma-separated email lists
+const recipientMatches = userQuery.match(/[\\w.-]+@[\\w.-]+\\.[a-z]{2,}/g);
+if (recipientMatches && recipientMatches.length > 1) {
+  for (const recipient of recipientMatches) {
+    await reportAgent.sendEmail(recipient, subject, report);
+  }
+}`} />
+
+### Add Scheduled Reports
+
+<CodeBlock language="typescript" code={`// Detect scheduling requests
+const hasSchedule = /daily|weekly|monthly|schedule/.test(lower);
+if (hasSchedule) {
+  const schedule = extractSchedule(userQuery);
+  await scheduleReport(queryType, recipient, schedule);
+}`} />
+
+### Add Custom Query Types
+
+<CodeBlock language="typescript" code={`// Add conversion funnel support
+const hasFunnel = /conversion|funnel|customer\\s+journey/.test(lower);
+
+if (hasFunnel) {
+  queryType = 'conversion_funnel';
+  analyticsResult = await analytics.getConversionFunnel();
+}`} />
+
+## Production Deployment Checklist
+
+When deploying to production:
+
+**Environment Variables:**
+```bash
+GEMINI_API_KEY=your_production_key
+FIREBOLT_CLIENT_ID=your_client_id
+FIREBOLT_CLIENT_SECRET=your_client_secret
+FIREBOLT_ACCOUNT=your_account
+FIREBOLT_DATABASE=ecommercedb
+GMAIL_USER=your_gmail@gmail.com
+GMAIL_APP_PASSWORD=your_app_password
+NODE_ENV=production
+```
+
+**Monitoring:**
+- Log all orchestration steps for debugging
+- Track failed steps and error rates
+- Monitor Gemini API usage and rate limits
+- Alert on repeated orchestration failures
+
+**Security:**
+- Validate and sanitize email addresses
+- Rate limit API endpoints to prevent abuse
+- Add authentication to orchestrator API
+- Sanitize user queries before sending to Gemini
+
+**Performance:**
+- Cache intent parsing results for common queries
+- Implement query result caching in Analytics Agent
+- Use Firebolt materialized views for frequent queries
+- Add indexes on commonly filtered columns
+
+

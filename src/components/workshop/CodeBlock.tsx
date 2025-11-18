@@ -12,14 +12,28 @@ export function CodeBlock({ code, language = 'tsx', onTry }: { code: string; lan
     setTimeout(() => setCopied(false), 1500);
   }
   return (
-    <div className="rounded-md border overflow-hidden">
-      <div className="flex items-center justify-end gap-2 p-2 bg-muted">
-        <Button size="sm" variant="outline" onClick={onCopy}>{copied ? 'Copied' : 'Copy'}</Button>
-        {onTry && (
-          <Button size="sm" onClick={onTry}>Try it</Button>
-        )}
+    <div className="rounded-lg border border-gray-200 overflow-hidden my-8 shadow-sm">
+      <div className="flex items-center justify-between gap-3 px-4 py-3 bg-gray-800 border-b border-gray-700">
+        <span className="text-sm font-medium text-gray-300 font-mono">{language}</span>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={onCopy} className="text-sm">
+            {copied ? '✓ Copied' : 'Copy'}
+          </Button>
+          {onTry && (
+            <Button size="sm" onClick={onTry} className="text-sm">Try it</Button>
+          )}
+        </div>
       </div>
-      <SyntaxHighlighter language={language} style={oneDark} customStyle={{ margin: 0 }}>
+      <SyntaxHighlighter 
+        language={language} 
+        style={oneDark} 
+        customStyle={{ 
+          margin: 0, 
+          padding: '1.5rem',
+          fontSize: '0.9rem',
+          lineHeight: '1.6'
+        }}
+      >
         {code}
       </SyntaxHighlighter>
     </div>

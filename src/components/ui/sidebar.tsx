@@ -18,35 +18,59 @@ interface SidebarProps {
   subtitle?: string;
 }
 
-export function Sidebar({ items, title = "Firebolt", subtitle }: SidebarProps) {
+export function Sidebar({ items, title = "FIREBOLT", subtitle }: SidebarProps) {
   const pathname = usePathname();
 
   return (
-    <div className="flex h-full w-64 flex-col bg-sidebar text-sidebar-foreground">
+    <div className="flex h-full w-64 flex-col bg-[#2b2d31] text-[#d9d9d9]">
       {/* Header */}
-      <div className="flex h-16 items-center gap-3 border-b border-sidebar-border px-6">
-        <div className="flex h-8 w-8 items-center justify-center">
-          <Image 
-            src="/firebolt.png" 
-            alt="Firebolt Logo"
-            width={32}
-            height={32}
-            className="object-contain"
-          />
+      <div className="flex flex-col gap-3 px-4 pt-6 pb-2">
+        {/* Logo Row */}
+        <div className="flex items-center justify-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center bg-white rounded-md">
+            {/* <Image 
+              src="/google.png" 
+              alt="Google Logo"
+              width={20}
+              height={20}
+              className="object-contain"
+            /> */}
+          </div>
+          <span className="text-[#7a7a7a] text-lg font-bold">×</span>
+          <div className="flex h-8 w-8 items-center justify-center bg-white rounded-md">
+            <Image 
+              src="/firebolt.png" 
+              alt="Firebolt Logo"
+              width={20}
+              height={20}
+              className="object-contain"
+            />
+          </div>
+          <span className="text-[#7a7a7a] text-lg font-bold">×</span>
+          <div className="flex h-8 w-8 items-center justify-center bg-white rounded-md">
+            <Image 
+              src="/devrelsquad.png" 
+              alt="DevRelSquad Logo"
+              width={20}
+              height={20}
+              className="object-contain"
+            />
+          </div>
         </div>
-        <div className="flex flex-col">
-          <span className="font-semibold text-sm tracking-tight">{title}</span>
+        {/* Title */}
+        <div className="flex flex-col items-center text-center">
+          <span className="font-semibold text-sm tracking-tight text-white">Google for Developers × Firebolt × DevRelSquad</span>
           {subtitle && (
-            <span className="text-xs text-sidebar-foreground/70">{subtitle}</span>
+            <span className="text-xs text-[#b5b5b5]">{subtitle}</span>
           )}
         </div>
       </div>
 
       {/* Search */}
-      <div className="p-4 border-b border-sidebar-border">
+      <div className="px-4 pb-2">
         <div className="relative">
           <svg 
-            className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-sidebar-foreground/50" 
+            className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#7a7a7a]" 
             fill="none" 
             stroke="currentColor" 
             viewBox="0 0 24 24"
@@ -56,14 +80,14 @@ export function Sidebar({ items, title = "Firebolt", subtitle }: SidebarProps) {
           <input
             type="text"
             placeholder="Search in docs"
-            className="w-full rounded-lg bg-sidebar-accent pl-10 pr-4 py-2 text-sm placeholder:text-sidebar-foreground/50 focus:outline-none focus:ring-2 focus:ring-firebolt"
+            className="w-full bg-[#1e1f22] text-[#d9d9d9] placeholder-[#7a7a7a] rounded-md pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#7AD2A2]"
           />
         </div>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-auto">
-        <div className="space-y-1 p-4">
+      <nav className="flex-1 overflow-auto p-4">
+        <div className="space-y-1">
           {items.map((item) => {
             const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
             
@@ -73,11 +97,11 @@ export function Sidebar({ items, title = "Firebolt", subtitle }: SidebarProps) {
                 href={item.href}
                 className={cn(
                   "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
-                  "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                  isActive && "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                  "hover:bg-[#3a3d42]",
+                  isActive && "bg-[#3a3d42] text-white font-medium"
                 )}
               >
-                {item.icon && <span className="h-4 w-4 flex-shrink-0">{item.icon}</span>}
+                {item.icon && <span className="h-5 w-5 flex-shrink-0">{item.icon}</span>}
                 <span className="truncate">{item.title}</span>
               </Link>
             );
@@ -86,17 +110,20 @@ export function Sidebar({ items, title = "Firebolt", subtitle }: SidebarProps) {
       </nav>
 
       {/* Footer */}
-      <div className="border-t border-sidebar-border p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <svg className="h-4 w-4 text-sidebar-foreground/60" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+      <div className="border-t border-[#3a3d42] p-4">
+        {/* <div className="flex items-center gap-2 mb-3 text-[#d9d9d9]">
+          <svg className="h-4 w-4 text-[#d9d9d9]" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
           </svg>
-          <span className="text-xs text-sidebar-foreground/60">Stars on GitHub</span>
-          <span className="text-xs text-sidebar-foreground font-medium">52K</span>
-        </div>
-        <button className="w-full rounded-lg bg-sidebar-accent hover:bg-sidebar-accent/80 px-3 py-2 text-sm text-sidebar-accent-foreground transition-colors">
+          <span className="text-xs">Stars on GitHub</span>
+          <span className="text-xs font-medium text-white">52K</span>
+        </div> */}
+        <Link 
+          href="/"
+          className="block w-full rounded-lg bg-[#7AD2A2] hover:bg-[#69c190] px-3 py-2.5 text-sm text-[#1e1f22] font-medium transition-colors text-center"
+        >
           Back to Home
-        </button>
+        </Link>
       </div>
     </div>
   );

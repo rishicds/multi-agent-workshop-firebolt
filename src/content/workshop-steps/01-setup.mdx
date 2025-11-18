@@ -1,39 +1,302 @@
 ---
-title: "Setup"
-description: "Prepare API keys and verify environment"
-duration: "30 minutes"
+title: "Setup & Environment Configuration"
+description: "Set up your development environment and verify installation"
+duration: "15 minutes"
 difficulty: "Beginner"
 objectives:
-  - "Configure Gemini API key"
-  - "Understand sandbox modes"
+  - "Clone project and install dependencies"
+  - "Configure environment variables"
+  - "Verify the installation"
+  - "Understand the project structure"
 ---
 
 import { CodeBlock } from '@/components/workshop/CodeBlock';
 import { Checkpoint } from '@/components/workshop/Checkpoint';
 
+# Workshop Environment Setup
 
+Set up your local development environment for the multi-agent workshop.
 
-Welcome to the Multi-Agent AI Workshop. In this step, you'll configure your environment.
+## What You'll Build
+
+**Natural Language Query** → **Gemini AI Converts to SQL** → **Firebolt Executes Query** → **Send Results via Gmail**
+
+---
 
 ## Prerequisites
 
-- Gemini API Key from Google AI Studio
-- Optional: Firebolt and Gmail credentials (sandbox is enabled by default)
+Before starting this workshop, complete the following setup guides:
 
-## Environment Variables
+### 🔧 Required Setup (Complete First)
 
-Create a `.env.local` file with the following:
+1. **[Firebolt Setup](/firebolt)** - Create Firebolt account, engine, database, and service account
+2. **[Gemini API Setup](/firebolt?section=gemini-setup)** - Get your Gemini API key from Google AI Studio
+3. **[Gmail SMTP Setup](/firebolt?section=gmail-setup)** - Configure Gmail for email reports (optional for dev mode)
 
-<CodeBlock language="bash" code={`GEMINI_API_KEY=your_gemini_api_key_here\nFIREBOLT_CLIENT_ID=workshop_sandbox_xyz\nFIREBOLT_CLIENT_SECRET=your_firebolt_secret\nFIREBOLT_ACCOUNT=workshop_account\nFIREBOLT_DATABASE=workshop_db\nNEXT_PUBLIC_APP_URL=http://localhost:3000\nNODE_ENV=development`} />
+### 📋 Required Software
 
-## Verify
+- **Node.js 18+** from [nodejs.org](https://nodejs.org)
+- **Git** for cloning the repository
+- **Code editor** (VS Code recommended)
 
-Run the dev server and open the homepage.
+---
 
-<CodeBlock language="bash" code={`npm install\nnpm run dev`} />
+## Step 1: Clone the Project
 
-If the demo loads, you're ready for Step 2.
+Get the workshop code from GitHub:
 
-<Checkpoint items={["Homepage loads without errors","/workshop route renders","Env variables created in .env.local"]} />
+<CodeBlock language="bash" code={`# Clone the repository
+git clone https://github.com/DevRelSquad/multi-agent-workshop-firebolt.git
+
+# Navigate into the project
+cd multi-agent-workshop-firebolt`} />
+
+---
+
+## Step 2: Install Dependencies
+
+Install all required packages using npm:
+
+<CodeBlock language="bash" code={`npm install`} />
+
+### Core Dependencies Installed
+
+- `@google/generative-ai` - Official Gemini SDK
+- `next` - Next.js framework with React
+- `lucide-react` - Professional icon library
+- `@radix-ui/*` - UI component primitives
+- `react-syntax-highlighter` - Code display
+
+This may take 2-3 minutes depending on your internet connection.
+
+---
+
+## Step 3: Configure Environment Variables
+
+### Create .env.local File
+
+<CodeBlock language="powershell" code={`# On Windows PowerShell
+New-Item -Path .env.local -ItemType File
+
+# Or manually create the file in your project root`} />
+
+### Add Your Configuration
+
+<CodeBlock language="bash" code={`# ============================================
+# Required: Gemini API Configuration
+# ============================================
+GEMINI_API_KEY=your_gemini_api_key_here
+
+# ============================================
+# Application Configuration
+# ============================================
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+NODE_ENV=development
+
+# ============================================
+# Optional: Production Configuration
+# ============================================
+# Firebolt (for production - uses mock in dev)
+# FIREBOLT_CLIENT_ID=your_firebolt_client_id
+# FIREBOLT_CLIENT_SECRET=your_firebolt_client_secret
+# FIREBOLT_ACCOUNT=your_account_name
+# FIREBOLT_DATABASE=your_database_name
+
+# Gmail (for production - uses sandbox in dev)
+# GMAIL_CLIENT_ID=your_gmail_oauth_client_id
+# GMAIL_CLIENT_SECRET=your_gmail_oauth_client_secret
+# GMAIL_REFRESH_TOKEN=your_refresh_token`} />
+
+### Important Notes
+
+- Replace `your_gemini_api_key_here` with your actual API key from [Gemini Setup](/firebolt?section=gemini-setup)
+- Development mode uses mock Firebolt data and sandbox Gmail (no credentials needed)
+- Production credentials are optional for this workshop
+
+---
+
+## Step 4: Run the Application
+
+### Start the Development Server
+
+<CodeBlock language="bash" code={`npm run dev`} />
+
+You should see output like:
+
+<CodeBlock language="text" code={`▲ Next.js 14.0.0
+- Local:        http://localhost:3000
+- Ready in 2.5s`} />
+
+### Access the Application
+
+Open your browser and navigate to:
+
+- **Main Demo:** [http://localhost:3000](http://localhost:3000)
+- **Workshop Steps:** [http://localhost:3000/workshop](http://localhost:3000/workshop)
+- **Setup Guides:** [http://localhost:3000/firebolt](http://localhost:3000/firebolt)
+
+---
+
+## Step 5: Verify Your Setup
+
+### Test the Application
+
+1. **Navigate to Main Page**
+   - Go to [http://localhost:3000](http://localhost:3000)
+   - Page should load without console errors
+
+2. **Test Orchestrator Agent**
+   - Scroll to "Orchestrator Agent" section
+   - Click "Try Multi-Step Flow"
+   - Verify you see intent classification and routing
+
+3. **Test Analytics Agent**
+   - Find "Analytics Agent" section
+   - Click "Run Customer Growth Query"
+   - Check for SQL generation and mock results
+
+4. **Test Report Agent**
+   - Locate "Report Agent" section
+   - Click "Generate & Preview Report"
+   - Confirm report generation and sandbox email
+
+### Verify Setup Script (Optional)
+
+Run the automated verification:
+
+<CodeBlock language="bash" code={`npm run verify-setup`} />
+
+This checks:
+- Node.js version (18+)
+- Dependencies installed
+- Environment variables configured
+- Development server can start
+
+---
+
+## Project Structure Overview
+
+Understanding the codebase:
+
+<CodeBlock language="text" code={`multi-agent-workshop-firebolt/
+├── src/
+│   ├── app/                  # Next.js app router
+│   │   ├── api/             # API routes
+│   │   │   ├── orchestrator/ # Multi-agent orchestration
+│   │   │   ├── analytics/    # Analytics agent endpoint
+│   │   │   └── report/       # Report generation endpoint
+│   │   ├── firebolt/        # Setup guides
+│   │   ├── workshop/        # Workshop steps
+│   │   └── page.tsx         # Main demo page
+│   │
+│   ├── components/          # React components
+│   │   ├── agents/          # Agent demo components
+│   │   ├── firebolt/        # Setup section components
+│   │   ├── ui/              # UI primitives
+│   │   └── workshop/        # Workshop-specific components
+│   │
+│   ├── lib/                 # Core logic
+│   │   ├── agents/          # Agent implementations
+│   │   │   ├── orchestrator.ts  # Main orchestrator
+│   │   │   ├── analytics.ts     # SQL generation
+│   │   │   └── report.ts        # Report generation
+│   │   ├── services/        # External services
+│   │   │   ├── gemini.ts        # Gemini API client
+│   │   │   ├── firebolt-mcp.ts  # Firebolt integration
+│   │   │   └── gmail.ts         # Email service
+│   │   └── utils/           # Utilities
+│   │
+│   └── content/             # Workshop MDX content
+│       └── workshop-steps/  # Step-by-step guides
+│
+├── .env.local               # Your environment config (create this)
+├── package.json             # Dependencies
+└── README.md               # Project documentation`} />
+
+### Key Files to Know
+
+- **`src/lib/agents/`** - Where you'll implement agent logic
+- **`src/lib/services/gemini.ts`** - Gemini API integration with rate limiting
+- **`src/app/api/`** - API endpoints that call your agents
+- **`src/components/agents/`** - UI components for testing agents
+
+---
+
+## Troubleshooting
+
+### Port 3000 Already in Use
+
+<CodeBlock language="bash" code={`# Kill process on port 3000
+npx kill-port 3000
+
+# Or use a different port
+npm run dev -- -p 3001`} />
+
+### Environment Variables Not Loading
+
+- Ensure `.env.local` is in the project root (not in `src/`)
+- Restart the dev server after adding/changing env vars
+- Check for syntax errors (no spaces around `=`)
+- Verify the file is named `.env.local` (not `.env.local.txt`)
+
+### Gemini API Errors
+
+- Verify your API key is correct (no extra spaces)
+- Check you're not hitting rate limits (15 RPM on free tier)
+- Ensure `GEMINI_API_KEY` is exactly as shown
+- See [Gemini Setup Troubleshooting](/firebolt?section=gemini-setup#troubleshooting)
+
+### Dependencies Failed to Install
+
+<CodeBlock language="bash" code={`# Clear npm cache
+npm cache clean --force
+
+# Delete node_modules and reinstall
+rm -rf node_modules package-lock.json
+npm install`} />
+
+---
+
+<Checkpoint items={[
+  "Project cloned from GitHub successfully",
+  "All dependencies installed without errors",
+  ".env.local file created with GEMINI_API_KEY",
+  "Development server running at http://localhost:3000",
+  "Main page loads without console errors",
+  "All three agent demos are functional"
+]} />
+
+---
+
+## Workshop Modes
+
+### Development Mode (Default)
+
+- **Firebolt:** Uses mock data, no credentials needed
+- **Gmail:** Sandbox mode, logs emails to console
+- **Perfect for:** Learning, testing, local development
+
+### Production Mode (Advanced)
+
+- **Firebolt:** Connects to real Firebolt database
+- **Gmail:** Sends actual emails via OAuth2
+- **Requires:** Full setup of Firebolt and Gmail credentials
+
+To enable production mode, set `NODE_ENV=production` and configure all credentials in `.env.local`.
+
+---
+
+## Next Steps
+
+Now that your environment is set up, you're ready to start building!
+
+**Continue to:** [Step 2: Analytics Agent](/workshop/02-analytics)
+
+In the next step, you'll learn how to:
+- Connect to Firebolt via MCP
+- Run prebuilt queries
+- Build customer growth analysis
+- Optimize database queries
+- Handle multi-turn conversations
 
 

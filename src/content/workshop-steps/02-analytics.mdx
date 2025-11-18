@@ -1,0 +1,277 @@
+---
+title: "Analytics Overview"
+description: "Introduction to Firebolt MCP integration"
+duration: "30 minutes"
+difficulty: "Beginner"
+objectives:
+  - "Understand Firebolt MCP client"
+  - "Learn about ecommerce data schema"
+  - "Explore prebuilt queries"
+---
+
+import { CodeBlock } from '@/components/workshop/CodeBlock';
+import { Exercise } from '@/components/workshop/Exercise';
+import { Hint } from '@/components/workshop/Hint';
+import { Checkpoint } from '@/components/workshop/Checkpoint';
+import { TestButton } from '@/components/workshop/TestButton';
+
+## Overview
+
+In this step, you'll learn about the Firebolt integration and explore the ecommerce dataset. The full hands-on implementation happens in **Step 4: Analytics Agent**.
+
+We connect to Firebolt via an MCP (Model Context Protocol) client. For workshop reliability, we use mocked data, but the queries are production-ready.
+
+**📖 External Tutorial:** For a deep dive into Firebolt setup, see [Firebolt Lab](https://www.devrelsquad.com/firebolt-lab)
+
+## Ecommerce Data Schema
+
+The `ecommerce` table is a **Firebolt FACT TABLE** that tracks user behavior events. Fact tables are optimized for analytical queries with automatic indexing and partitioning.
+
+<CodeBlock language="sql" code={`CREATE FACT TABLE ecommerce (
+  event_time     TIMESTAMPTZ NOT NULL,    -- When the event occurred
+  event_type     TEXT NOT NULL,           -- 'view', 'cart', or 'purchase'
+  product_id     BIGINT NOT NULL,         -- Unique product identifier
+  category_id    TEXT NULL,               -- Category identifier (optional)
+  category_code  TEXT NULL,               -- Category path (e.g., 'electronics.smartphone')
+  brand          TEXT NULL,               -- Product brand (optional)
+  price          NUMERIC(38, 9) NULL,     -- Product price (optional for views)
+  user_id        TEXT NULL,               -- Unique user identifier (optional)
+  user_session   TEXT NULL                -- Session identifier (optional)
+);`} />
+
+**Key fields for analytics:**
+- `event_type` - Filter for purchases vs views vs cart additions (NOT NULL)
+- `event_time` - Time-based analysis and trend tracking (NOT NULL, indexed)
+- `product_id` - Unique product identifier (NOT NULL)
+- `price` - Revenue calculations (NULL for view events)
+- `user_id` - Customer metrics and behavior analysis (NULL for anonymous users)
+- `brand`, `category_code` - Product performance analysis (NULL when unknown)
+
+**Important Notes:**
+- **FACT TABLE** provides automatic performance optimization
+- **NOT NULL** constraints ensure data quality for core fields
+- **NULL fields** must use `IS NOT NULL` filters to avoid empty results
+- All aggregations on nullable fields should use `NULLIF` for safety
+
+## Firebolt MCP Client
+
+The MCP client abstracts Firebolt connection details:
+
+<CodeBlock language="typescript" code={`import { FireboltMCPClient } from '@/lib/services/firebolt-mcp';
+
+const mcpClient = new FireboltMCPClient({
+  clientId: process.env.FIREBOLT_CLIENT_ID,
+  clientSecret: process.env.FIREBOLT_CLIENT_SECRET,
+  account: process.env.FIREBOLT_ACCOUNT,
+  database: process.env.FIREBOLT_DATABASE || 'ecommercedb'
+});
+
+// Execute any SQL query
+const result = await mcpClient.execute(\`
+  SELECT COUNT(*) as total_events
+  FROM ecommerce
+  WHERE event_time > CURRENT_DATE - INTERVAL '7 days'
+\`);`} />
+
+**What you get:**
+- Automatic connection management
+- Query execution with error handling
+- Mocked data for workshop environments
+- Production-ready for real Firebolt deployments
+
+## Prebuilt Queries Overview
+
+The Analytics Agent (built in Step 4) includes five prebuilt query types:
+
+### 1. Revenue Query
+**What it does:** Total revenue, purchases, and customer metrics for the last 30 days
+
+<CodeBlock language="sql" code={`SELECT 
+  SUM(price) as total_revenue,
+  COUNT(*) as total_purchases,
+  COUNT(DISTINCT user_id) as unique_customers,
+  ROUND(SUM(price) / NULLIF(COUNT(DISTINCT user_id), 0), 2) as avg_revenue_per_customer
+FROM ecommerce
+WHERE event_type = 'purchase' 
+AND event_time > CURRENT_DATE - INTERVAL '30 days'`} />
+
+**Use cases:** Daily revenue reports, financial dashboards, customer lifetime value
+
+### 2. Top Products Query
+**What it does:** Top 10 products by purchase count in the last 30 days
+
+<CodeBlock language="sql" code={`SELECT 
+  product_id,
+  brand,
+  category_code,
+  COUNT(*) as purchase_count,
+  SUM(price) as total_revenue,
+  ROUND(AVG(price), 2) as avg_price
+FROM ecommerce
+WHERE event_type = 'purchase'
+AND event_time > CURRENT_DATE - INTERVAL '30 days'
+GROUP BY product_id, brand, category_code
+ORDER BY purchase_count DESC 
+LIMIT 10`} />
+
+**Use cases:** Inventory planning, marketing campaigns, product recommendations
+
+### 3. User Behavior Query
+**What it does:** Event counts by type (views, carts, purchases) for the last 7 days
+
+<CodeBlock language="sql" code={`SELECT 
+  event_type,
+  COUNT(*) as event_count,
+  COUNT(DISTINCT user_id) as unique_users,
+  COUNT(DISTINCT user_session) as unique_sessions
+FROM ecommerce
+WHERE event_time > CURRENT_DATE - INTERVAL '7 days'
+GROUP BY event_type
+ORDER BY event_count DESC`} />
+
+**Use cases:** Engagement metrics, conversion funnel analysis, user activity tracking
+
+### 4. Category Performance Query
+**What it does:** Top 10 categories by revenue in the last 30 days
+
+**Use cases:** Category optimization, merchandising strategy, trend analysis
+
+### 5. Brand Analysis Query
+**What it does:** Top 10 brands by revenue in the last 30 days
+
+**Use cases:** Brand partnerships, supplier negotiations, inventory allocation
+
+## Test the Analytics Demo
+
+Try the prebuilt queries in the Analytics Demo on the homepage:
+
+<TestButton label="Test Analytics Queries" message="Use the Analytics Demo to run revenue and top_products queries!" />
+
+**What to try:**
+1. Select "Revenue" query type → See total revenue, purchases, customers
+2. Select "Top Products" → See best-selling products with purchase counts
+3. Select "User Behavior" → See event counts by type
+4. Select "Category Performance" → See top categories by revenue
+5. Select "Brand Analysis" → See top brands by revenue
+
+**What you'll notice:**
+- Queries return structured JSON data
+- Results include aggregations (SUM, COUNT, AVG)
+- Time ranges are already applied (7 or 30 days)
+- Data is realistic ecommerce transaction data
+
+## Understanding Query Performance
+
+With **400M+ rows**, query performance matters:
+
+### Why FACT TABLE Matters
+
+**Regular Table:**
+- Full table scan on 400M rows
+- Manual index management required
+- Query time: 30-60 seconds
+- High compute costs
+
+**With FACT TABLE (Firebolt optimization):**
+- Automatic sparse indexing on all columns
+- Smart partition pruning
+- Query time: 1-3 seconds
+- 10-20x cost savings
+- No manual index creation needed
+
+### Firebolt FACT TABLE Features
+
+<CodeBlock language="sql" code={`-- FACT TABLE automatically provides:
+-- 1. Sparse indexes on ALL columns
+-- 2. Automatic partition pruning
+-- 3. Optimized compression
+-- 4. Column-oriented storage
+
+-- No manual indexing required!
+CREATE FACT TABLE ecommerce (
+  event_time     TIMESTAMPTZ NOT NULL,
+  event_type     TEXT NOT NULL,
+  product_id     BIGINT NOT NULL,
+  category_id    TEXT NULL,
+  category_code  TEXT NULL,
+  brand          TEXT NULL,
+  price          NUMERIC(38, 9) NULL,
+  user_id        TEXT NULL,
+  user_session   TEXT NULL
+);
+
+-- Optional: Add PRIMARY INDEX for time-based queries
+PRIMARY INDEX event_time;`} />
+
+**FACT TABLE Benefits:**
+- Automatic sparse indexing on all columns (no manual creation!)
+- Efficient partition pruning for time-based queries
+- Optimized for aggregations (SUM, COUNT, AVG)
+- Best for append-only analytical workloads
+
+## Next Steps
+
+In **Step 4: Analytics Agent**, you'll:
+1. ✅ Implement the `AnalyticsAgent` class with all 5 query types
+2. ✅ Build the Analytics API route
+3. ✅ Add advanced queries (customer growth, conversion funnel)
+4. ✅ Learn query optimization techniques
+
+<Checkpoint items={[
+  "Understand ecommerce table schema (event_time, event_type, price, user_id)",
+  "Know the 5 prebuilt query types and their use cases",
+  "Tested queries in the Analytics Demo",
+  "Understand why indexing matters for large datasets",
+  "Ready to build the Analytics Agent in Step 4"
+]} />
+
+## Preview: Advanced Analytics (Step 4)
+
+In Step 4, you'll also implement:
+
+### Customer Growth Analysis
+Track month-over-month customer acquisition with LAG window functions:
+
+<CodeBlock language="sql" code={`WITH monthly_customers AS (
+  SELECT
+    DATE_TRUNC('month', event_time) as month,
+    COUNT(DISTINCT user_id) as new_customers
+  FROM ecommerce
+  WHERE event_type = 'purchase'
+  GROUP BY DATE_TRUNC('month', event_time)
+)
+SELECT
+  month,
+  new_customers,
+  LAG(new_customers) OVER (ORDER BY month) as prev_month_customers,
+  ROUND(
+    ((new_customers - LAG(new_customers) OVER (ORDER BY month))::NUMERIC 
+    / LAG(new_customers) OVER (ORDER BY month)) * 100, 2
+  ) as growth_pct
+FROM monthly_customers
+ORDER BY month DESC`} />
+
+### Conversion Funnel Analysis
+Track user journey from view → cart → purchase:
+
+<CodeBlock language="sql" code={`WITH funnel_data AS (
+  SELECT 
+    user_id,
+    user_session,
+    MAX(CASE WHEN event_type = 'view' THEN 1 ELSE 0 END) as viewed,
+    MAX(CASE WHEN event_type = 'cart' THEN 1 ELSE 0 END) as added_to_cart,
+    MAX(CASE WHEN event_type = 'purchase' THEN 1 ELSE 0 END) as purchased
+  FROM ecommerce
+  WHERE event_time > CURRENT_DATE - INTERVAL '30 days'
+  GROUP BY user_id, user_session
+)
+SELECT 
+  SUM(viewed) as total_views,
+  SUM(added_to_cart) as total_cart_adds,
+  SUM(purchased) as total_purchases,
+  ROUND((SUM(purchased)::NUMERIC / NULLIF(SUM(viewed), 0)) * 100, 2) as conversion_rate
+FROM funnel_data`} />
+
+**Get ready to build this in Step 4!** 🚀
+
+

@@ -1,0 +1,520 @@
+---
+title: "Analytics Agent"
+description: "Build a data analytics agent with Firebolt queries"
+duration: "60 minutes"
+difficulty: "Intermediate"
+objectives:
+  - "Implement the Analytics Agent class"
+  - "Build API routes for analytics queries"
+  - "Add advanced query methods"
+---
+
+import { CodeBlock } from '@/components/workshop/CodeBlock';
+import { Exercise } from '@/components/workshop/Exercise';
+import { Hint } from '@/components/workshop/Hint';
+import { Checkpoint } from '@/components/workshop/Checkpoint';
+import { TestButton } from '@/components/workshop/TestButton';
+
+## Overview
+
+The **Analytics Agent** is your data-fetching powerhouse. It connects to Firebolt via the MCP client to execute SQL queries and return ecommerce insights. In this tutorial, you'll build:
+
+1. **AnalyticsAgent class** (`src/lib/agents/analytics.ts`) - Executes predefined queries
+2. **Analytics API route** (`src/app/api/analytics/route.ts`) - HTTP endpoint for the agent
+3. **Advanced query methods** - Customer growth and conversion funnels
+
+## Key Concepts
+
+### Supported Query Types
+The agent supports five main query types:
+- `revenue` - Total revenue, purchases, customer metrics (last 30 days)
+- `top_products` - Best-selling products with revenue data (last 30 days)
+- `user_behavior` - Event counts and user engagement (last 7 days)
+- `category_performance` - Performance by product category (last 30 days)
+- `brand_analysis` - Performance by brand (last 30 days)
+
+### Firebolt MCP Integration
+The agent uses `FireboltMCPClient` to execute queries:
+
+<CodeBlock language="typescript" code={`import { FireboltMCPClient, QueryResult } from '@/lib/services/firebolt-mcp';
+
+const mcpClient = new FireboltMCPClient({
+  clientId: process.env.FIREBOLT_CLIENT_ID,
+  clientSecret: process.env.FIREBOLT_CLIENT_SECRET,
+  account: process.env.FIREBOLT_ACCOUNT,
+  database: process.env.FIREBOLT_DATABASE
+});
+
+const result = await mcpClient.execute(sqlQuery);`} />
+
+## Exercise 1: Build the Analytics Agent Class
+
+Let's implement the core `AnalyticsAgent` class with the `executeQuery` method.
+
+<Exercise title="Implement executeQuery method">
+
+Open `src/lib/agents/analytics.ts` and implement the `executeQuery` method that:
+1. Takes a `queryType` parameter (string)
+2. Maps the type to a predefined SQL query
+3. Executes the query using the MCP client
+4. Returns the query result
+
+**Requirements:**
+- Support all 5 query types: `revenue`, `top_products`, `user_behavior`, `category_performance`, `brand_analysis`
+- Use `this.tableName` for the table reference (supports database prefix)
+- Throw an error for unknown query types
+- Use appropriate time ranges (30 days for most, 7 days for user_behavior)
+
+**Example revenue query structure:**
+```sql
+SELECT 
+  SUM(price) as total_revenue,
+  COUNT(*) as total_purchases,
+  COUNT(DISTINCT user_id) as unique_customers,
+  ROUND(SUM(price) / NULLIF(COUNT(DISTINCT user_id), 0), 2) as avg_revenue_per_customer
+FROM {tableName}
+WHERE event_type = 'purchase' 
+AND event_time > CURRENT_DATE - INTERVAL '30 days'
+```
+
+<Hint title="Full implementation (click to reveal)">
+<CodeBlock language="typescript" code={`async executeQuery(queryType: string): Promise<QueryResult> {
+  const queries: Record<string, string> = {
+    revenue: \`
+      SELECT 
+        SUM(price) as total_revenue,
+        COUNT(*) as total_purchases,
+        COUNT(DISTINCT user_id) as unique_customers,
+        ROUND(SUM(price) / NULLIF(COUNT(DISTINCT user_id), 0), 2) as avg_revenue_per_customer
+      FROM \${this.tableName}
+      WHERE event_type = 'purchase' 
+      AND event_time > CURRENT_DATE - INTERVAL '30 days'
+    \`,
+    top_products: \`
+      SELECT 
+        product_id,
+        brand,
+        category_code,
+        COUNT(*) as purchase_count,
+        SUM(price) as total_revenue,
+        ROUND(AVG(price), 2) as avg_price
+      FROM \${this.tableName}
+      WHERE event_type = 'purchase'
+      AND event_time > CURRENT_DATE - INTERVAL '30 days'
+      GROUP BY product_id, brand, category_code
+      ORDER BY purchase_count DESC 
+      LIMIT 10
+    \`,
+    user_behavior: \`
+      SELECT 
+        event_type,
+        COUNT(*) as event_count,
+        COUNT(DISTINCT user_id) as unique_users,
+        COUNT(DISTINCT user_session) as unique_sessions
+      FROM \${this.tableName}
+      WHERE event_time > CURRENT_DATE - INTERVAL '7 days'
+      GROUP BY event_type
+      ORDER BY event_count DESC
+    \`,
+    category_performance: \`
+      SELECT 
+        category_code,
+        COUNT(*) as purchases,
+        SUM(price) as revenue,
+        ROUND(AVG(price), 2) as avg_price,
+        COUNT(DISTINCT user_id) as unique_customers
+      FROM \${this.tableName}
+      WHERE event_type = 'purchase'
+      AND category_code IS NOT NULL
+      AND event_time > CURRENT_DATE - INTERVAL '30 days'
+      GROUP BY category_code
+      ORDER BY revenue DESC
+      LIMIT 10
+    \`,
+    brand_analysis: \`
+      SELECT 
+        brand,
+        COUNT(*) as purchases,
+        SUM(price) as revenue,
+        ROUND(AVG(price), 2) as avg_price,
+        COUNT(DISTINCT user_id) as customers
+      FROM \${this.tableName}
+      WHERE event_type = 'purchase'
+      AND brand IS NOT NULL
+      AND event_time > CURRENT_DATE - INTERVAL '30 days'
+      GROUP BY brand
+      ORDER BY revenue DESC
+      LIMIT 10
+    \`,
+  };
+
+  if (!queries[queryType]) {
+    throw new Error(\`Unknown query type: \${queryType}\`);
+  }
+
+  return await this.mcpClient.execute(queries[queryType]);
+}`} />
+</Hint>
+
+</Exercise>
+
+## Exercise 2: Build the Analytics API Route
+
+Now let's create the HTTP API endpoint that exposes the Analytics Agent.
+
+<Exercise title="Implement the Analytics API route">
+
+Open `src/app/api/analytics/route.ts` and implement:
+
+**POST endpoint:**
+1. Extract `queryType` from request body
+2. Validate that queryType is provided
+3. Validate that queryType is one of the 5 supported types
+4. Create an `AnalyticsAgent` instance
+5. Execute the query
+6. Return JSON response with success, queryType, and result
+
+**GET endpoint:**
+1. Return a list of available query types with descriptions
+
+<Hint title="Full implementation (click to reveal)">
+<CodeBlock language="typescript" code={`import { NextRequest, NextResponse } from 'next/server';
+import { AnalyticsAgent } from '@/lib/agents/analytics';
+
+export async function POST(request: NextRequest) {
+  try {
+    const { queryType } = await request.json();
+    
+    if (!queryType) {
+      return NextResponse.json(
+        { error: 'queryType is required' }, 
+        { status: 400 }
+      );
+    }
+    
+    // Validate queryType
+    const validQueryTypes = [
+      'revenue',
+      'top_products',
+      'user_behavior',
+      'category_performance',
+      'brand_analysis'
+    ];
+    
+    if (!validQueryTypes.includes(queryType)) {
+      return NextResponse.json(
+        { 
+          error: \`Invalid queryType. Must be one of: \${validQueryTypes.join(', ')}\`,
+          validQueryTypes
+        }, 
+        { status: 400 }
+      );
+    }
+    
+    const analytics = new AnalyticsAgent();
+    const result = await analytics.executeQuery(queryType);
+    
+    return NextResponse.json({ 
+      success: true,
+      queryType,
+      result 
+    });
+  } catch (error: any) {
+    console.error('Analytics API error:', error);
+    return NextResponse.json(
+      { 
+        success: false,
+        error: error?.message ?? 'Unknown error',
+        details: process.env.NODE_ENV === 'development' ? error?.stack : undefined
+      }, 
+      { status: 500 }
+    );
+  }
+}
+
+// Add GET endpoint for available query types
+export async function GET() {
+  return NextResponse.json({
+    availableQueryTypes: [
+      { 
+        type: 'revenue', 
+        description: 'Total revenue, purchases, and customer metrics for the last 30 days' 
+      },
+      { 
+        type: 'top_products', 
+        description: 'Top 10 products by purchase count in the last 30 days' 
+      },
+      { 
+        type: 'user_behavior', 
+        description: 'User behavior analysis (views, carts, purchases) for the last 7 days' 
+      },
+      { 
+        type: 'category_performance', 
+        description: 'Category performance metrics for the last 30 days' 
+      },
+      { 
+        type: 'brand_analysis', 
+        description: 'Brand performance analysis for the last 30 days' 
+      }
+    ]
+  });
+}`} />
+</Hint>
+
+**Test your API:**
+```bash
+# Get available query types
+curl http://localhost:3000/api/analytics
+
+# Execute a revenue query
+curl -X POST http://localhost:3000/api/analytics \
+  -H "Content-Type: application/json" \
+  -d '{"queryType": "revenue"}'
+```
+
+</Exercise>
+
+<Checkpoint items={[
+  "AnalyticsAgent class has executeQuery method with all 5 query types",
+  "API POST endpoint validates and executes queries",
+  "API GET endpoint returns available query types",
+  "Error handling returns appropriate status codes (400, 500)",
+  "Queries use proper SQL syntax with time ranges and aggregations"
+]} />
+
+## Exercise 3: Advanced Query - Customer Growth
+
+Let's add a method to track month-over-month customer growth using SQL window functions.
+
+<Exercise title="Implement getCustomerGrowth method">
+
+Add a `getCustomerGrowth()` method to the `AnalyticsAgent` class that:
+1. Calculates unique customers per month using `DATE_TRUNC`
+2. Uses `LAG` window function to get previous month's count
+3. Calculates growth percentage: `((current - previous) / previous) * 100`
+4. Handles edge cases: NULL for first month, divide-by-zero protection
+5. Orders results by month descending
+
+**Expected output columns:**
+- `month` - Month start date
+- `new_customers` - Unique customers that month
+- `prev_month_customers` - Previous month's count (NULL for first month)
+- `growth_pct` - Percentage growth (NULL for first month or when prev = 0)
+
+<Hint title="Full implementation (click to reveal)">
+<CodeBlock language="typescript" code={`async getCustomerGrowth(): Promise<QueryResult> {
+  const query = \`
+    WITH monthly_customers AS (
+      SELECT
+        DATE_TRUNC('month', event_time) as month,
+        COUNT(DISTINCT user_id) as new_customers
+      FROM \${this.tableName}
+      WHERE event_type = 'purchase'
+      AND event_time > CURRENT_DATE - INTERVAL '12 months'
+      GROUP BY DATE_TRUNC('month', event_time)
+    )
+    SELECT
+      month,
+      new_customers,
+      LAG(new_customers) OVER (ORDER BY month) as prev_month_customers,
+      CASE 
+        WHEN LAG(new_customers) OVER (ORDER BY month) = 0 OR LAG(new_customers) OVER (ORDER BY month) IS NULL
+        THEN NULL
+        ELSE ROUND(
+          ((new_customers - LAG(new_customers) OVER (ORDER BY month))::NUMERIC 
+          / LAG(new_customers) OVER (ORDER BY month)) * 100, 2
+        )
+      END as growth_pct
+    FROM monthly_customers
+    ORDER BY month DESC
+  \`;
+  
+  return await this.mcpClient.execute(query);
+}`} />
+</Hint>
+
+**Key SQL techniques:**
+- `WITH` clause for readable CTEs
+- `DATE_TRUNC('month', ...)` for monthly grouping
+- `LAG(...) OVER (ORDER BY month)` for previous month
+- `CASE` statement for NULL handling
+- `::NUMERIC` for type casting to avoid integer division
+
+</Exercise>
+
+## Exercise 4: Advanced Query - Conversion Funnel
+
+Add a conversion funnel analysis to track the user journey from view → cart → purchase.
+
+<Exercise title="Implement getConversionFunnel method">
+
+Add a `getConversionFunnel()` method that:
+1. Groups events by user_id and user_session
+2. Uses `MAX(CASE WHEN ...)` to flag if each event type occurred
+3. Calculates conversion rates at each funnel stage
+4. Returns aggregate funnel metrics
+
+**Expected output:**
+- `total_views` - Total sessions with views
+- `total_cart_adds` - Total sessions with cart additions
+- `total_purchases` - Total sessions with purchases
+- `view_to_cart_rate` - Percentage who added to cart after viewing
+- `cart_to_purchase_rate` - Percentage who purchased after cart
+- `overall_conversion_rate` - Percentage who purchased after viewing
+
+<Hint title="Full implementation (click to reveal)">
+<CodeBlock language="typescript" code={`async getConversionFunnel(): Promise<QueryResult> {
+  const query = \`
+    WITH funnel_data AS (
+      SELECT 
+        user_id,
+        user_session,
+        MAX(CASE WHEN event_type = 'view' THEN 1 ELSE 0 END) as viewed,
+        MAX(CASE WHEN event_type = 'cart' THEN 1 ELSE 0 END) as added_to_cart,
+        MAX(CASE WHEN event_type = 'purchase' THEN 1 ELSE 0 END) as purchased
+      FROM \${this.tableName}
+      WHERE event_time > CURRENT_DATE - INTERVAL '30 days'
+      GROUP BY user_id, user_session
+    )
+    SELECT 
+      SUM(viewed) as total_views,
+      SUM(added_to_cart) as total_cart_adds,
+      SUM(purchased) as total_purchases,
+      ROUND((SUM(added_to_cart)::NUMERIC / NULLIF(SUM(viewed), 0)) * 100, 2) as view_to_cart_rate,
+      ROUND((SUM(purchased)::NUMERIC / NULLIF(SUM(added_to_cart), 0)) * 100, 2) as cart_to_purchase_rate,
+      ROUND((SUM(purchased)::NUMERIC / NULLIF(SUM(viewed), 0)) * 100, 2) as overall_conversion_rate
+    FROM funnel_data
+  \`;
+  
+  return await this.mcpClient.execute(query);
+}`} />
+</Hint>
+
+**Funnel Analysis Insights:**
+- Low view-to-cart rate? Improve product descriptions or pricing
+- Low cart-to-purchase rate? Reduce checkout friction or shipping costs
+- Overall conversion < 2%? Industry average is 2-3% for ecommerce
+
+</Exercise>
+
+<Checkpoint items={[
+  "getCustomerGrowth returns monthly data with growth percentages",
+  "LAG window function correctly handles edge cases",
+  "getConversionFunnel tracks view → cart → purchase journey",
+  "Conversion rates use NULLIF to prevent divide-by-zero errors",
+  "Both methods use appropriate time ranges (12 months, 30 days)"
+]} />
+
+## Query Optimization Tips
+
+When working with large datasets (400M+ rows), optimization is critical:
+
+### 1. Use FACT TABLE (Already Optimized!)
+The `ecommerce` table is already a FACT TABLE, providing automatic optimizations:
+```sql
+-- Current table definition (already optimized!)
+CREATE FACT TABLE ecommerce (
+  event_time     TIMESTAMPTZ NOT NULL,
+  event_type     TEXT NOT NULL,
+  product_id     BIGINT NOT NULL,
+  category_id    TEXT NULL,
+  category_code  TEXT NULL,
+  brand          TEXT NULL,
+  price          NUMERIC(38, 9) NULL,
+  user_id        TEXT NULL,
+  user_session   TEXT NULL
+)
+PRIMARY INDEX event_time;
+
+-- FACT TABLE provides:
+-- ✅ Automatic sparse indexes on ALL columns
+-- ✅ Optimized compression
+-- ✅ Fast partition pruning
+-- ✅ No manual index management needed
+```
+
+### 2. Aggregating Tables for Frequent Queries
+```sql
+-- Pre-aggregate daily revenue for faster dashboards
+CREATE AGGREGATING INDEX daily_revenue_agg ON ecommerce (
+  DATE_TRUNC('day', event_time) as date,
+  event_type,
+  SUM(price) as revenue,
+  COUNT(*) as transactions,
+  COUNT(DISTINCT user_id) as customers
+)
+WHERE event_type = 'purchase';
+```
+
+### 3. Handling NULL Fields
+Since many fields are nullable, always filter them properly:
+```sql
+-- ✅ GOOD: Filter NULL values before aggregation
+SELECT brand, COUNT(*) as purchases
+FROM ecommerce
+WHERE brand IS NOT NULL  -- Prevents NULL in results
+  AND event_type = 'purchase'
+GROUP BY brand;
+
+-- ❌ BAD: NULL values create empty groups
+SELECT brand, COUNT(*) as purchases
+FROM ecommerce
+WHERE event_type = 'purchase'
+GROUP BY brand;  -- Includes NULL brand rows
+```
+
+### 4. Use Firebolt's Query Optimizer
+```sql
+-- Get recommendations for your queries
+CALL RECOMMEND_DDL(
+  ecommerce,
+  (SELECT query_text FROM information_schema.engine_query_history
+   WHERE query_text ILIKE 'select%' 
+   AND end_time > NOW() - INTERVAL '30 minutes')
+);
+```
+
+## Test
+
+<TestButton label="Test Analytics Queries" message="Use the Analytics Demo to test all query types!" />
+
+**Test all queries:**
+- ✅ Revenue query returns total_revenue, total_purchases, unique_customers
+- ✅ Top products returns 10 products sorted by purchase_count
+- ✅ User behavior shows event counts by type
+- ✅ Category performance shows top 10 categories by revenue
+- ✅ Brand analysis shows top 10 brands by revenue
+- ✅ Customer growth shows monthly trends with growth_pct
+- ✅ Conversion funnel shows view/cart/purchase rates
+
+## Advanced: Add More Query Types
+
+Want to extend your analytics? Try adding:
+
+### Revenue Time Series
+```typescript
+async getRevenueTimeSeries(interval: 'day' | 'week' | 'month' = 'day') {
+  const query = `
+    SELECT 
+      DATE_TRUNC('${interval}', event_time) as period,
+      SUM(price) as revenue,
+      COUNT(*) as transactions
+    FROM ${this.tableName}
+    WHERE event_type = 'purchase'
+    AND event_time > CURRENT_DATE - INTERVAL '90 days'
+    GROUP BY period
+    ORDER BY period DESC
+  `;
+  return await this.mcpClient.execute(query);
+}
+```
+
+### Cohort Analysis
+```typescript
+async getCohortAnalysis() {
+  // Track customer retention by signup month
+  // Uses window functions and CTEs
+}
+```
+
+

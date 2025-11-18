@@ -1,0 +1,167 @@
+---
+title: "Orchestration Theory"
+description: "Understanding multi-step AI workflows with Gemini"
+duration: "30 minutes"
+difficulty: "Beginner"
+objectives:
+  - "Understand why orchestration is needed"
+  - "Learn about Gemini's capabilities and limitations"
+  - "Explore the role of MCP in connecting services"
+---
+
+import { CodeBlock } from '@/components/workshop/CodeBlock';
+import { Checkpoint } from '@/components/workshop/Checkpoint';
+
+## Why Do We Need Orchestration?
+
+The final workflow is multi-step and involves multiple services working together:
+
+```
+User question → Gemini → SQL → MCP → Firebolt DB
+                            ↓
+                            Results → Gemini → Report → Gmail
+```
+
+This isn't a simple request-response pattern. It's a chain of operations where:
+1. User asks a business question
+2. Gemini translates it to SQL
+3. MCP executes the query against Firebolt
+4. Results come back
+5. Gemini analyzes and formats the results
+6. Report is generated
+7. Email is sent via Gmail
+
+**Without orchestration**, you'd need to manually chain these steps, handle errors at each stage, and manage the flow of data between services.
+
+## What Gemini Is Excellent At
+
+Gemini excels at several key capabilities that make it ideal for orchestration:
+
+### 1. SQL Generation
+Gemini can translate natural language questions into precise SQL queries:
+
+<CodeBlock language="typescript" code={`// User asks: "What were our top selling products last month?"\n// Gemini generates:\nSELECT \n  product_name,\n  SUM(quantity) as total_sold,\n  SUM(price * quantity) as revenue\nFROM ecommerce\nWHERE event_time >= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month')\n  AND event_time < DATE_TRUNC('month', CURRENT_DATE)\n  AND event_type = 'purchase'\nGROUP BY product_name\nORDER BY revenue DESC\nLIMIT 10;`} />
+
+### 2. Reasoning
+Gemini can understand context, make decisions, and choose the right tools:
+- Determine which database query is needed
+- Decide when to send an email vs. just display results
+- Chain multiple operations logically
+
+### 3. Writing Email-Style Reports
+Gemini can transform raw data into professional, readable reports:
+
+<CodeBlock language="text" code={`Subject: Monthly Sales Performance Report\n\nDear Team,\n\nHere's a summary of our top-performing products for October 2024:\n\n1. Premium Headphones - $45,230 in revenue (1,234 units)\n2. Wireless Mouse - $32,100 in revenue (2,140 units)\n3. USB-C Cable - $18,450 in revenue (3,690 units)\n\nKey insights:\n- Premium electronics continue to drive the most revenue\n- Accessory sales show strong volume growth\n- Average order value increased 12% month-over-month\n\nBest regards,\nAnalytics Team`} />
+
+### 4. Combining Steps
+Gemini can orchestrate multi-step workflows by:
+- Calling one tool after another in sequence
+- Using the output of one step as input for the next
+- Handling errors and retrying when needed
+
+## What Gemini Cannot Do Directly
+
+Despite its capabilities, Gemini has important limitations:
+
+❌ **Cannot directly access Firebolt databases**
+- No native database connection
+- Cannot execute SQL without an intermediary
+
+❌ **Cannot send emails through Gmail**
+- No SMTP access
+- No API credentials for external services
+
+❌ **Cannot perform custom business logic**
+- Limited to its training and general capabilities
+- Cannot access your proprietary systems
+
+## The Solution: MCP Server
+
+This is why we create a **Model Context Protocol (MCP) server** that exposes tools Gemini can use:
+
+### MCP Tools We Provide
+
+<CodeBlock language="typescript" code={`// 1. Database Query Tool\n/run_sql\n// Allows Gemini to execute SQL against Firebolt\n// Input: SQL query string\n// Output: Query results as JSON\n\n// 2. Email Tool\n/send_gmail\n// Allows Gemini to send emails via Gmail SMTP\n// Input: recipient, subject, body\n// Output: success/failure status\n\n// 3. Report Generation Tool\n/generate_report\n// Allows Gemini to format data into reports\n// Input: raw data, report template\n// Output: formatted report text`} />
+
+### How It Works
+
+1. **Gemini calls these tools** as if they were built-in functions
+2. **MCP server receives the calls** and translates them to actual operations
+3. **External services are accessed** (Firebolt, Gmail) through proper authentication
+4. **Results are returned** to Gemini for further processing
+
+This architecture gives Gemini the ability to:
+- Execute database queries
+- Send emails
+- Access external APIs
+- Perform custom business logic
+
+All while maintaining proper security, authentication, and error handling.
+
+## The Complete Flow
+
+Here's how everything connects in our workshop:
+
+```
+┌─────────────┐
+│    User     │ "What were sales last month?"
+└──────┬──────┘
+       │
+       ▼
+┌─────────────────────────────────────────┐
+│              Gemini                     │
+│  • Understands question                 │
+│  • Decides to use /run_sql tool        │
+│  • Generates SQL query                  │
+└──────┬──────────────────────────────────┘
+       │
+       ▼
+┌─────────────────────────────────────────┐
+│           MCP Server                    │
+│  • Receives tool call                   │
+│  • Validates request                    │
+│  • Executes SQL via Firebolt client    │
+└──────┬──────────────────────────────────┘
+       │
+       ▼
+┌─────────────────────────────────────────┐
+│         Firebolt Database               │
+│  • Executes query                       │
+│  • Returns results                      │
+└──────┬──────────────────────────────────┘
+       │
+       ▼
+┌─────────────────────────────────────────┐
+│           MCP Server                    │
+│  • Receives results                     │
+│  • Returns to Gemini                    │
+└──────┬──────────────────────────────────┘
+       │
+       ▼
+┌─────────────────────────────────────────┐
+│              Gemini                     │
+│  • Analyzes results                     │
+│  • Decides to use /generate_report     │
+│  • Decides to use /send_gmail          │
+└──────┬──────────────────────────────────┘
+       │
+       ▼
+┌─────────────┐
+│  Gmail/User │ Email delivered!
+└─────────────┘
+```
+
+## Key Takeaways
+
+<Checkpoint items={[
+  "✅ Orchestration is needed because workflows involve multiple services",
+  "✅ Gemini excels at SQL generation, reasoning, and report writing",
+  "✅ Gemini cannot directly access databases or external services",
+  "✅ MCP server bridges the gap by exposing tools Gemini can call",
+  "✅ Tools handle authentication, execution, and error handling",
+  "✅ This architecture enables powerful multi-step AI workflows"
+]} />
+
+## Next Steps
+
+In the next section, we'll implement the **Orchestrator agent** that coordinates these tools and manages the complete workflow from question to email delivery.

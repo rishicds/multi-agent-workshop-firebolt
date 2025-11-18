@@ -1,0 +1,324 @@
+---
+title: "Report"
+description: "Generate and email data-driven reports"
+duration: "45 minutes"
+difficulty: "Intermediate"
+objectives:
+  - "Generate summaries with Gemini"
+  - "Create financial reports with structured templates"
+  - "Send emails with sandbox and production modes"
+---
+
+import { Exercise } from '@/components/workshop/Exercise';
+import { Hint } from '@/components/workshop/Hint';
+import { Checkpoint } from '@/components/workshop/Checkpoint';
+import { TestButton } from '@/components/workshop/TestButton';
+
+## Overview
+
+The **Report Agent** transforms raw analytics data into professional, readable reports using Gemini. It supports:
+- **Summary Reports**: Quick executive summaries (~250-300 words)
+- **Detailed Reports**: Comprehensive analysis
+- **Financial Reports**: Structured reports with executive summary, metrics, trends, and recommendations (~500-600 words)
+- **Email Delivery**: Sandbox (preview) and production (real emails) modes
+
+## Key Capabilities
+
+### 1. Report Generation
+Uses Gemini to transform structured data into natural language reports with:
+- Professional tone and formatting
+- Data-driven insights
+- Actionable recommendations
+- Customizable templates
+
+### 2. Email Integration
+Sends reports via Gmail SMTP with:
+- Sandbox mode for development (preview only)
+- Production mode for real email delivery
+- Error handling and status tracking
+
+## Walkthrough
+
+Open `src/lib/agents/report.ts` and review the main methods:
+
+1. **`generateReport()`** - Basic summary/detailed reports
+2. **`generateFinancialReport()`** - Structured financial reports
+3. **`sendEmail()`** - Email delivery with sandbox/production modes
+4. **`generateEcommerceInsights()`** - Specialized ecommerce analysis
+
+## Exercise 1: Understanding Financial Reports
+
+The `generateFinancialReport` method is already implemented! Let's understand its structure:
+
+<Exercise title="Review the financial report template">
+
+The method creates a comprehensive 4-section report:
+
+**1. Executive Summary**
+- Brief overview of key findings (2-3 sentences)
+- Overall business health assessment
+- Time period covered
+
+**2. Key Metrics** (Bullet Points)
+- Revenue, transactions, customer counts
+- Conversion rates and averages
+- Growth rates and comparisons
+
+**3. Trends Analysis**
+- Purchasing behavior patterns
+- Product/category/brand performance
+- Customer engagement signals
+- Time-based trends and anomalies
+
+**4. Recommendations**
+- Actionable business insights
+- Revenue growth strategies
+- Optimization opportunities
+- Risk mitigation
+
+<Hint title="Implementation (click to reveal)">
+```typescript
+async generateFinancialReport(data: any): Promise<string> {
+  const prompt = `
+  Using this ecommerce financial data, create a comprehensive financial report with the following structure:
+  
+  1. EXECUTIVE SUMMARY
+     - Brief overview of key findings (2-3 sentences)
+     - Overall business health assessment
+     - Period covered by the data
+  
+  2. KEY METRICS
+     - Present as bullet points with actual numbers
+     - Include revenue, transactions, customer metrics
+     - Highlight conversion rates and averages
+     - Show growth rates if available
+  
+  3. TRENDS ANALYSIS
+     - Identify patterns in purchasing behavior
+     - Product, category, or brand performance insights
+     - Customer engagement and retention signals
+     - Time-based trends and anomalies
+  
+  4. RECOMMENDATIONS
+     - Actionable insights based on the data
+     - Strategic suggestions for revenue growth
+     - Product/category optimization opportunities
+     - Customer acquisition and retention strategies
+  
+  Data:
+  ${JSON.stringify(data, null, 2)}
+  
+  Style: Professional, executive-level, data-driven
+  Format: Use clear headings, bullet points, and specific numbers
+  Length: Comprehensive but focused (~500-600 words)
+  Tone: Confident, analytical, solution-oriented
+  `;
+
+  const result = await this.model.generateContent(prompt);
+  return result.response.text();
+}
+```
+</Hint>
+
+**Try in the Report Demo:**
+- Select "Financial" report type
+- Choose "Revenue Data" or "Top Products" as data source
+- Click "Generate Report & Send Email"
+- Review the structured 4-section output
+
+</Exercise>
+
+## Exercise 2: Email Delivery Modes
+
+The `sendEmail` method supports both sandbox and production modes:
+
+<Exercise title="Understanding email delivery">
+
+The method automatically detects the environment:
+
+**Sandbox Mode** (Development)
+- `NODE_ENV !== 'production'`
+- Logs email preview to console
+- Returns success without sending
+- Safe for testing and workshops
+
+**Production Mode**
+- `NODE_ENV === 'production'`
+- Sends real emails via Gmail SMTP
+- Requires Gmail credentials configured
+- Returns actual send status
+
+<Hint title="Implementation (click to reveal)">
+```typescript
+async sendEmail(recipient: string, subject: string, body: string): Promise<boolean> {
+  // Preview email in console
+  console.log(`📧 Email Preview (Sandbox Mode):`);
+  console.log(`To: ${recipient}`);
+  console.log(`Subject: ${subject}`);
+  console.log(`Body:\n${body}`);
+  
+  try {
+    // In development/sandbox mode, just log and return success
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('✅ Email would be sent in production mode');
+      return true;
+    }
+    
+    // In production, send via Gmail API
+    const result = await this.gmailClient.send({ 
+      recipient, 
+      subject, 
+      body 
+    });
+    
+    console.log('✅ Email sent successfully');
+    return result;
+  } catch (error) {
+    console.error('❌ Email send failed:', error);
+    return false;
+  }
+}
+```
+</Hint>
+
+**Test Email Delivery:**
+1. Open browser console (F12)
+2. Generate a report with an email address
+3. Check console for the email preview
+4. Look for "📧 Email Preview (Sandbox Mode)" output
+
+</Exercise>
+
+## Exercise 3: Using Different Data Sources
+
+The Report Demo lets you test with different ecommerce data:
+
+<Exercise title="Compare report outputs">
+
+Try generating reports with different data sources:
+
+**Revenue Data:**
+```json
+{
+  "total_revenue": 1234567.89,
+  "total_purchases": 8542,
+  "unique_customers": 3421,
+  "avg_revenue_per_customer": 360.85
+}
+```
+
+**Top Products Data:**
+```json
+[
+  {
+    "product_id": 12345,
+    "brand": "Samsung",
+    "category_code": "electronics.smartphone",
+    "purchase_count": 542,
+    "total_revenue": 542000,
+    "avg_price": 999.99
+  },
+  // ... more products
+]
+```
+
+**Questions to Explore:**
+- How does Gemini structure insights differently for revenue vs. product data?
+- What recommendations change based on the data type?
+- How does the financial template adapt to different metrics?
+
+</Exercise>
+
+<Checkpoint items={[
+  "Financial report contains all 4 sections (Executive Summary, Key Metrics, Trends, Recommendations)",
+  "Email preview displays in console with recipient and subject",
+  "Different report types (summary/detailed/financial) generate different outputs",
+  "Data source selection changes the report content appropriately",
+  "Email status (sent/preview) is tracked and displayed"
+]} />
+
+## Advanced: Custom Report Templates
+
+Want to create your own report templates? Here's how:
+
+### Add a New Report Type
+```typescript
+async generateEcommerceInsights(data: any): Promise<string> {
+  const prompt = `
+  Analyze this ecommerce data and provide strategic business insights:
+  
+  ${JSON.stringify(data, null, 2)}
+  
+  Focus on:
+  1. Revenue Optimization
+     - High-value products and categories
+     - Pricing opportunities
+     - Cross-sell and upsell potential
+  
+  2. Customer Behavior
+     - Purchase patterns
+     - Customer segmentation opportunities
+     - Engagement and retention signals
+  
+  3. Product Performance
+     - Top and bottom performers
+     - Category trends
+     - Brand positioning
+  
+  4. Actionable Recommendations
+     - Inventory management
+     - Marketing focus areas
+     - Product development opportunities
+  
+  Format: Clear sections with bullet points
+  Style: Strategic, executive-level, actionable
+  `;
+
+  const result = await this.model.generateContent(prompt);
+  return result.response.text();
+}
+```
+
+### Create Custom Email Templates
+```typescript
+const REPORT_TEMPLATES = {
+  executive: `
+# Executive Report
+
+## Overview
+{overview}
+
+## Key Findings
+{findings}
+
+## Strategic Recommendations
+{recommendations}
+`,
+  technical: `
+# Technical Analysis Report
+
+## Data Summary
+{summary}
+
+## Detailed Metrics
+{metrics}
+
+## Technical Insights
+{insights}
+`
+};
+```
+
+## Test
+
+<TestButton label="Generate All Report Types" message="Use the Report Demo to test all three report types with both data sources." />
+
+**Test Checklist:**
+- ✅ Generate Summary report with revenue data
+- ✅ Generate Detailed report with top products data
+- ✅ Generate Financial report with revenue data
+- ✅ Test email preview in sandbox mode
+- ✅ Verify console logs show email details
+- ✅ Check that all 4 sections appear in financial reports
+
+

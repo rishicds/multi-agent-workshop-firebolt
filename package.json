@@ -7,17 +7,22 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "stackblitz": "npx http-server . -p 3000"
+    "stackblitz": "npx http-server . -p 3000",
+    "verify-setup": "node scripts/verify-setup.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.1.3",
+    "@modelcontextprotocol/sdk": "^1.22.0",
     "@radix-ui/react-tabs": "^1.0.4",
+    "@types/nodemailer": "^7.0.3",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.0.0",
+    "firebolt-sdk": "^1.14.0",
     "gray-matter": "^4.0.3",
     "lucide-react": "^0.294.0",
     "next": "^14.0.0",
     "next-mdx-remote": "^4.4.1",
+    "nodemailer": "^7.0.10",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-syntax-highlighter": "^15.5.0",
