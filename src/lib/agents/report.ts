@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { GmailClient } from '@/lib/services/gmail';
+import { generateReportHTML } from '@/lib/utils/email-templates';
 
 export class ReportAgent {
   private model: any;
@@ -185,22 +186,35 @@ export class ReportAgent {
   /**
    * ✅ COMPLETE: Email delivery with error handling
    * 
-   * Sends email via Gmail API
+   * Sends email via Gmail API with HTML formatting
    * - Includes sandbox mode for development
    * - Proper error handling
-   * - Formatted email body
+   * - Professional HTML email template with branding
+   * 
+   * @param recipient - Email recipient address
+   * @param subject - Email subject line
+   * @param body - Report content (plain text/markdown)
+   * @param reportType - Type of report for proper HTML template selection
    */
-  async sendEmail(recipient: string, subject: string, body: string): Promise<boolean> {
+  async sendEmail(
+    recipient: string, 
+    subject: string, 
+    body: string, 
+    reportType: 'summary' | 'detailed' | 'financial' = 'summary'
+  ): Promise<boolean> {
     try {
+      // Convert the report to HTML format
+      const htmlBody = generateReportHTML(body, reportType, 'Firebolt Analytics Database');
+      
       // Send via Gmail client (it handles sandbox vs real mode internally)
       const result = await this.gmailClient.send({ 
         recipient, 
         subject, 
-        body 
+        body: htmlBody
       });
       
       if (result) {
-        console.log('✅ Email sent successfully');
+        console.log('✅ Email sent successfully (HTML format)');
       } else {
         console.log('⚠️ Email send returned false (check logs for details)');
       }

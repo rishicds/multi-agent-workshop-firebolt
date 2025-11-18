@@ -1,0 +1,462 @@
+/**
+ * Professional HTML Email Templates for Reports
+ * 
+ * Features:
+ * - Responsive design for all email clients
+ * - Branded header with logos
+ * - Clean, modern styling
+ * - Footer with partnership branding
+ */
+
+export type EmailTemplate = {
+  subject: string;
+  html: string;
+};
+
+const LOGO_URLS = {
+  google: 'https://www.gstatic.com/images/branding/googlelogo/2x/googlelogo_color_92x30dp.png',
+  firebolt: 'https://www.firebolt.io/favicon.ico',
+};
+
+/**
+ * Base HTML template with header and footer
+ */
+function getBaseTemplate(content: string, title: string): string {
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title}</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      line-height: 1.6;
+      color: #334155;
+      background-color: #f1f5f9;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 700px;
+      margin: 40px auto;
+      background-color: #ffffff;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    .header {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: white;
+      padding: 30px;
+      text-align: center;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+    .header p {
+      margin: 8px 0 0 0;
+      font-size: 14px;
+      opacity: 0.95;
+    }
+    .content {
+      padding: 40px 30px;
+    }
+    h2 {
+      color: #059669;
+      font-size: 22px;
+      margin-top: 30px;
+      margin-bottom: 15px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #d1fae5;
+    }
+    h3 {
+      color: #047857;
+      font-size: 18px;
+      margin-top: 25px;
+      margin-bottom: 12px;
+    }
+    .metric-card {
+      background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+      border-left: 4px solid #10b981;
+      padding: 20px;
+      margin: 20px 0;
+      border-radius: 8px;
+    }
+    .metric-card h3 {
+      margin-top: 0;
+      color: #047857;
+    }
+    .metric-list {
+      list-style: none;
+      padding: 0;
+      margin: 15px 0;
+    }
+    .metric-list li {
+      padding: 8px 0;
+      border-bottom: 1px solid #d1fae5;
+    }
+    .metric-list li:last-child {
+      border-bottom: none;
+    }
+    .metric-label {
+      font-weight: 600;
+      color: #047857;
+    }
+    .metric-value {
+      float: right;
+      font-weight: 700;
+      color: #059669;
+      font-size: 18px;
+    }
+    .recommendation {
+      background: #fef3c7;
+      border-left: 4px solid #f59e0b;
+      padding: 15px;
+      margin: 15px 0;
+      border-radius: 6px;
+    }
+    .recommendation h4 {
+      margin-top: 0;
+      color: #92400e;
+    }
+    .insight {
+      background: #e0e7ff;
+      border-left: 4px solid #6366f1;
+      padding: 15px;
+      margin: 15px 0;
+      border-radius: 6px;
+    }
+    .footer {
+      background-color: #1e293b;
+      color: #cbd5e1;
+      padding: 30px;
+      text-align: center;
+    }
+    .footer-logos {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 20px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .footer-logo-item {
+      font-size: 14px;
+      font-weight: 600;
+      color: #e2e8f0;
+    }
+    .footer-divider {
+      color: #475569;
+      margin: 0 10px;
+    }
+    .footer p {
+      margin: 8px 0;
+      font-size: 13px;
+      color: #94a3b8;
+    }
+    .footer a {
+      color: #10b981;
+      text-decoration: none;
+    }
+    .footer a:hover {
+      text-decoration: underline;
+    }
+    strong {
+      color: #0f766e;
+      font-weight: 700;
+    }
+    .highlight {
+      background-color: #fef3c7;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-weight: 600;
+    }
+    @media only screen and (max-width: 600px) {
+      .container {
+        margin: 20px;
+        border-radius: 8px;
+      }
+      .header {
+        padding: 20px;
+      }
+      .header h1 {
+        font-size: 24px;
+      }
+      .content {
+        padding: 25px 20px;
+      }
+      .metric-value {
+        float: none;
+        display: block;
+        margin-top: 5px;
+      }
+      .footer-logos {
+        flex-direction: column;
+        gap: 10px;
+      }
+      .footer-divider {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>📊 ${title}</h1>
+      <p>E-commerce Analytics Report</p>
+    </div>
+    <div class="content">
+      ${content}
+    </div>
+    <div class="footer">
+      <div class="footer-logos">
+        <span class="footer-logo-item">Google for Developers</span>
+        <span class="footer-divider">×</span>
+        <span class="footer-logo-item">Firebolt</span>
+        <span class="footer-divider">×</span>
+        <span class="footer-logo-item">DevRelSquad</span>
+      </div>
+      <p>Powered by Gemini AI + Firebolt MCP</p>
+      <p style="margin-top: 15px; font-size: 12px;">
+        This is an automated report generated by the Multi-Agent AI Workshop.
+      </p>
+    </div>
+  </div>
+</body>
+</html>
+`;
+}
+
+/**
+ * Convert markdown-style report to HTML
+ */
+function markdownToHTML(markdown: string): string {
+  let html = markdown;
+  
+  // Convert headers
+  html = html.replace(/### (.*?)$/gm, '<h3>$1</h3>');
+  html = html.replace(/## (.*?)$/gm, '<h2>$1</h2>');
+  html = html.replace(/# (.*?)$/gm, '<h2>$1</h2>');
+  
+  // Convert bold text
+  html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  
+  // Convert bullet points (markdown lists)
+  html = html.replace(/^[\s]*[-*]\s+(.+)$/gm, '<li>$1</li>');
+  html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul style="margin: 10px 0; padding-left: 25px;">$&</ul>');
+  
+  // Convert line breaks
+  html = html.replace(/\n\n/g, '</p><p>');
+  html = '<p>' + html + '</p>';
+  
+  // Clean up empty paragraphs
+  html = html.replace(/<p>\s*<\/p>/g, '');
+  html = html.replace(/<p>(<[^>]+>)<\/p>/g, '$1');
+  
+  return html;
+}
+
+/**
+ * Parse sections from Gemini-generated report
+ */
+function parseReportSections(report: string): {
+  executiveSummary?: string;
+  keyMetrics?: string;
+  trends?: string;
+  recommendations?: string;
+  sections: Array<{ title: string; content: string }>;
+} {
+  const sections: Array<{ title: string; content: string }> = [];
+  
+  // Split by main headers (## or ###)
+  const parts = report.split(/(?=#{1,3}\s+)/);
+  
+  let executiveSummary = '';
+  let keyMetrics = '';
+  let trends = '';
+  let recommendations = '';
+  
+  for (const part of parts) {
+    const trimmed = part.trim();
+    if (!trimmed) continue;
+    
+    // Extract title and content
+    const match = trimmed.match(/^#{1,3}\s+(.+?)\n([\s\S]*)/);
+    if (match) {
+      const title = match[1].trim();
+      const content = match[2].trim();
+      
+      sections.push({ title, content });
+      
+      // Categorize sections
+      if (/executive|summary|overview/i.test(title)) {
+        executiveSummary = content;
+      } else if (/key\s*metric|kpi/i.test(title)) {
+        keyMetrics = content;
+      } else if (/trend|pattern|analysis/i.test(title)) {
+        trends = content;
+      } else if (/recommend|action|next\s*step/i.test(title)) {
+        recommendations = content;
+      }
+    }
+  }
+  
+  return { executiveSummary, keyMetrics, trends, recommendations, sections };
+}
+
+/**
+ * Generate HTML email for financial report
+ */
+export function generateFinancialReportHTML(report: string, dataSource: string = 'Firebolt Analytics'): string {
+  const parsed = parseReportSections(report);
+  
+  let content = '';
+  
+  // Executive Summary
+  if (parsed.executiveSummary) {
+    content += `
+      <div class="metric-card">
+        <h2>📈 Executive Summary</h2>
+        ${markdownToHTML(parsed.executiveSummary)}
+      </div>
+    `;
+  }
+  
+  // Key Metrics
+  if (parsed.keyMetrics) {
+    content += `
+      <h2>📊 Key Metrics</h2>
+      ${markdownToHTML(parsed.keyMetrics)}
+    `;
+  }
+  
+  // Trends Analysis
+  if (parsed.trends) {
+    content += `
+      <div class="insight">
+        <h2>📉 Trends Analysis</h2>
+        ${markdownToHTML(parsed.trends)}
+      </div>
+    `;
+  }
+  
+  // Recommendations
+  if (parsed.recommendations) {
+    content += `
+      <div class="recommendation">
+        <h2>💡 Recommendations</h2>
+        ${markdownToHTML(parsed.recommendations)}
+      </div>
+    `;
+  }
+  
+  // If sections weren't properly categorized, add them all
+  if (!content.trim()) {
+    for (const section of parsed.sections) {
+      content += `
+        <h2>${section.title}</h2>
+        ${markdownToHTML(section.content)}
+      `;
+    }
+  }
+  
+  content += `
+    <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #e5e7eb;">
+      <p style="font-size: 13px; color: #6b7280;">
+        <strong>Data Source:</strong> ${dataSource}<br>
+        <strong>Generated:</strong> ${new Date().toLocaleString('en-US', { 
+          dateStyle: 'full', 
+          timeStyle: 'short' 
+        })}
+      </p>
+    </div>
+  `;
+  
+  return getBaseTemplate(content, 'Financial Report');
+}
+
+/**
+ * Generate HTML email for summary report
+ */
+export function generateSummaryReportHTML(report: string, dataSource: string = 'Firebolt Analytics'): string {
+  const parsed = parseReportSections(report);
+  
+  let content = `
+    <div class="metric-card">
+      ${markdownToHTML(report)}
+    </div>
+  `;
+  
+  content += `
+    <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #e5e7eb;">
+      <p style="font-size: 13px; color: #6b7280;">
+        <strong>Data Source:</strong> ${dataSource}<br>
+        <strong>Generated:</strong> ${new Date().toLocaleString('en-US', { 
+          dateStyle: 'full', 
+          timeStyle: 'short' 
+        })}
+      </p>
+    </div>
+  `;
+  
+  return getBaseTemplate(content, 'Executive Summary Report');
+}
+
+/**
+ * Generate HTML email for detailed report
+ */
+export function generateDetailedReportHTML(report: string, dataSource: string = 'Firebolt Analytics'): string {
+  const parsed = parseReportSections(report);
+  
+  let content = '';
+  
+  for (const section of parsed.sections) {
+    content += `
+      <h2>${section.title}</h2>
+      ${markdownToHTML(section.content)}
+    `;
+  }
+  
+  if (!content.trim()) {
+    content = markdownToHTML(report);
+  }
+  
+  content += `
+    <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #e5e7eb;">
+      <p style="font-size: 13px; color: #6b7280;">
+        <strong>Data Source:</strong> ${dataSource}<br>
+        <strong>Generated:</strong> ${new Date().toLocaleString('en-US', { 
+          dateStyle: 'full', 
+          timeStyle: 'short' 
+        })}
+      </p>
+    </div>
+  `;
+  
+  return getBaseTemplate(content, 'Detailed Analytics Report');
+}
+
+/**
+ * Generate HTML email based on report type
+ */
+export function generateReportHTML(
+  report: string, 
+  reportType: 'summary' | 'detailed' | 'financial',
+  dataSource: string = 'Firebolt Analytics'
+): string {
+  switch (reportType) {
+    case 'financial':
+      return generateFinancialReportHTML(report, dataSource);
+    case 'detailed':
+      return generateDetailedReportHTML(report, dataSource);
+    case 'summary':
+    default:
+      return generateSummaryReportHTML(report, dataSource);
+  }
+}

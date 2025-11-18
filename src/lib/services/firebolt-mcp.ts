@@ -64,7 +64,7 @@ export class FireboltMCPClient {
   }
 
   async execute(sql: string): Promise<QueryResult> {
-    logger.info('FireboltMCP execute', { sql, mode: this.mock ? 'mock' : 'real' });
+    logger.info('FireboltMCP execute', { sql: sql.substring(0, 200), mode: this.mock ? 'mock' : 'real' });
     
     if (this.mock) {
       return this.mockExecute(sql);
@@ -90,31 +90,49 @@ export class FireboltMCPClient {
         connectionParams.engineName = this.engine;
       }
       
+      logger.info('Attempting Firebolt connection...', {
+        account: this.config.account,
+        database: this.database,
+        engine: this.engine || 'system (default)',
+        hasClientId: !!this.config.clientId,
+        hasClientSecret: !!this.config.clientSecret,
+      });
+      
       const connection = await this.fireboltClient.connect(connectionParams);
       
-      logger.info('Firebolt connection established', { 
+      logger.info('Firebolt connection established successfully', { 
         account: this.config.account, 
         database: this.database,
         engine: this.engine || 'system (default)'
       });
       
       // Execute the query
+      logger.info('Executing SQL query...', { queryLength: sql.length });
       const statement = await connection.execute(sql);
-      const { data, columns } = await statement.fetchResult();
+      
+      logger.info('Fetching query results...');
+      const { data, meta } = await statement.fetchResult();
       
       logger.info('Firebolt query executed successfully', { 
-        rowCount: data.length,
-        columnCount: columns?.length || 0 
+        rowCount: data ? data.length : 0,
+        metaCount: meta ? meta.length : 0,
+        metaStructure: meta ? meta.map((m: any) => ({ name: m.name, type: m.type })) : []
       });
       
       // Transform Firebolt result to QueryResult format
-      const columnNames = columns?.map((col: any) => col.name) || [];
-      const rows = data.map((row: any) => {
+      const columnNames = meta?.map((m: any) => m.name) || [];
+      const rows = (data || []).map((row: any) => {
         const rowObj: Record<string, any> = {};
         columnNames.forEach((colName: string, idx: number) => {
           rowObj[colName] = row[idx];
         });
         return rowObj;
+      });
+      
+      logger.info('Query transformation complete', {
+        columns: columnNames,
+        rowCount: rows.length,
+        firstRow: rows[0] || null
       });
       
       return {
@@ -123,14 +141,18 @@ export class FireboltMCPClient {
       };
       
     } catch (error) {
-      logger.error('Firebolt query execution failed', { 
-        error: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined 
-      });
+      // Enhanced error logging
+      const errorDetails = {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        name: error instanceof Error ? error.name : 'Error',
+        stack: error instanceof Error ? error.stack : undefined,
+        errorObject: error,
+      };
       
-      // Fall back to mock data on error
-      logger.warn('Falling back to mock data due to error');
-      return this.mockExecute(sql);
+      logger.error('Firebolt query execution failed - DETAILED ERROR', errorDetails);
+      
+      // Don't fall back to mock - throw the error so we can see it in the console
+      throw new Error(`Firebolt query failed: ${errorDetails.message}${errorDetails.stack ? '\n' + errorDetails.stack : ''}`);
     }
   }
 
@@ -138,20 +160,22 @@ export class FireboltMCPClient {
     const lower = sql.toLowerCase();
     
     // Revenue query for ecommerce
-    if (lower.includes('sum(price)') && lower.includes('total_revenue') && lower.includes('ecommerce')) {
+    if (lower.includes('sum(price)') && lower.includes('total_revenue')) {
       return {
-        columns: ['total_revenue', 'total_purchases', 'unique_customers', 'avg_revenue_per_customer'],
+        columns: ['total_revenue', 'total_purchases', 'unique_customers', 'avg_revenue_per_customer', 'period_start', 'period_end'],
         rows: [{
           total_revenue: 2847563.42,
           total_purchases: 12547,
           unique_customers: 4821,
-          avg_revenue_per_customer: 590.58
+          avg_revenue_per_customer: 590.58,
+          period_start: '2024-01-01T00:00:00Z',
+          period_end: '2024-11-18T23:59:59Z'
         }]
       };
     }
     
     // Top products query
-    if (lower.includes('product_id') && lower.includes('purchase_count') && lower.includes('ecommerce')) {
+    if (lower.includes('product_id') && lower.includes('purchase_count')) {
       return {
         columns: ['product_id', 'brand', 'category_code', 'purchase_count', 'total_revenue', 'avg_price'],
         rows: [
@@ -170,19 +194,19 @@ export class FireboltMCPClient {
     }
     
     // User behavior query
-    if (lower.includes('event_type') && lower.includes('event_count') && lower.includes('ecommerce')) {
+    if (lower.includes('event_type') && lower.includes('event_count')) {
       return {
-        columns: ['event_type', 'event_count', 'unique_users', 'unique_sessions'],
+        columns: ['event_type', 'event_count', 'unique_users', 'unique_sessions', 'avg_price_when_present'],
         rows: [
-          { event_type: 'view', event_count: 145623, unique_users: 18947, unique_sessions: 23456 },
-          { event_type: 'cart', event_count: 28945, unique_users: 12341, unique_sessions: 15234 },
-          { event_type: 'purchase', event_count: 12547, unique_users: 4821, unique_sessions: 6234 },
+          { event_type: 'view', event_count: 145623, unique_users: 18947, unique_sessions: 23456, avg_price_when_present: 0.00 },
+          { event_type: 'cart', event_count: 28945, unique_users: 12341, unique_sessions: 15234, avg_price_when_present: 0.00 },
+          { event_type: 'purchase', event_count: 12547, unique_users: 4821, unique_sessions: 6234, avg_price_when_present: 226.86 },
         ]
       };
     }
     
-    // Category performance query
-    if (lower.includes('category_code') && lower.includes('group by category_code') && lower.includes('ecommerce')) {
+    // Category performance query (the problematic one)
+    if (lower.includes('category_code') && (lower.includes('group by category_code') || lower.includes('category_performance'))) {
       return {
         columns: ['category_code', 'purchases', 'revenue', 'avg_price', 'unique_customers'],
         rows: [
@@ -201,7 +225,7 @@ export class FireboltMCPClient {
     }
     
     // Brand analysis query
-    if (lower.includes('brand') && lower.includes('group by brand') && lower.includes('ecommerce')) {
+    if (lower.includes('brand') && lower.includes('group by brand')) {
       return {
         columns: ['brand', 'purchases', 'revenue', 'avg_price', 'customers'],
         rows: [
@@ -219,6 +243,49 @@ export class FireboltMCPClient {
       };
     }
     
+    // Conversion funnel query
+    if (lower.includes('view_to_cart_rate') || lower.includes('cart_to_purchase_rate')) {
+      return {
+        columns: ['total_views', 'total_cart_adds', 'total_purchases', 'view_to_cart_rate', 'cart_to_purchase_rate', 'overall_conversion_rate'],
+        rows: [{
+          total_views: 145623,
+          total_cart_adds: 28945,
+          total_purchases: 12547,
+          view_to_cart_rate: 19.88,
+          cart_to_purchase_rate: 43.35,
+          overall_conversion_rate: 8.62
+        }]
+      };
+    }
+    
+    // Revenue time series query
+    if (lower.includes('date_trunc') && lower.includes('revenue') && lower.includes('period')) {
+      return {
+        columns: ['period', 'revenue', 'transactions', 'customers', 'avg_order_value', 'prev_period_revenue', 'revenue_growth_pct'],
+        rows: [
+          { period: '2024-11-01T00:00:00Z', revenue: 245678.90, transactions: 1089, customers: 421, avg_order_value: 225.65, prev_period_revenue: 238950.50, revenue_growth_pct: 2.82 },
+          { period: '2024-10-01T00:00:00Z', revenue: 238950.50, transactions: 1054, customers: 398, avg_order_value: 226.71, prev_period_revenue: 229345.20, revenue_growth_pct: 4.19 },
+          { period: '2024-09-01T00:00:00Z', revenue: 229345.20, transactions: 1021, customers: 387, avg_order_value: 224.63, prev_period_revenue: 221890.30, revenue_growth_pct: 3.36 },
+          { period: '2024-08-01T00:00:00Z', revenue: 221890.30, transactions: 989, customers: 375, avg_order_value: 224.36, prev_period_revenue: 215678.40, revenue_growth_pct: 2.88 },
+          { period: '2024-07-01T00:00:00Z', revenue: 215678.40, transactions: 956, customers: 362, avg_order_value: 225.60, prev_period_revenue: null, revenue_growth_pct: null },
+        ]
+      };
+    }
+    
+    // Customer growth query
+    if (lower.includes('new_customers') && lower.includes('growth_pct')) {
+      return {
+        columns: ['month', 'new_customers', 'prev_month_customers', 'growth_pct'],
+        rows: [
+          { month: '2024-11-01T00:00:00Z', new_customers: 421, prev_month_customers: 398, growth_pct: 5.78 },
+          { month: '2024-10-01T00:00:00Z', new_customers: 398, prev_month_customers: 387, growth_pct: 2.84 },
+          { month: '2024-09-01T00:00:00Z', new_customers: 387, prev_month_customers: 375, growth_pct: 3.20 },
+          { month: '2024-08-01T00:00:00Z', new_customers: 375, prev_month_customers: 362, growth_pct: 3.59 },
+          { month: '2024-07-01T00:00:00Z', new_customers: 362, prev_month_customers: null, growth_pct: null },
+        ]
+      };
+    }
+    
     // Legacy fallbacks
     if (lower.includes('sum(amount)') && lower.includes('from sales')) {
       return { columns: ['total_revenue'], rows: [{ total_revenue: 1234567.89 }] };
@@ -230,16 +297,6 @@ export class FireboltMCPClient {
           { product_name: 'UltraWidget', count: 542 },
           { product_name: 'MegaGadget', count: 410 },
           { product_name: 'ProDevice', count: 377 },
-        ],
-      };
-    }
-    if (lower.includes('from customers') && lower.includes("date_trunc('month'")) {
-      return {
-        columns: ['month', 'new_customers', 'growth_pct'],
-        rows: [
-          { month: '2024-01-01', new_customers: 100, growth_pct: null },
-          { month: '2024-02-01', new_customers: 120, growth_pct: 20.0 },
-          { month: '2024-03-01', new_customers: 126, growth_pct: 5.0 },
         ],
       };
     }

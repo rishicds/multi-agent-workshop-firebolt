@@ -20,7 +20,8 @@ The **Report Agent** transforms raw analytics data into professional, readable r
 - **Summary Reports**: Quick executive summaries (~250-300 words)
 - **Detailed Reports**: Comprehensive analysis
 - **Financial Reports**: Structured reports with executive summary, metrics, trends, and recommendations (~500-600 words)
-- **Email Delivery**: Sandbox (preview) and production (real emails) modes
+- **Email Delivery**: Beautiful HTML emails with branded footer (Google for Developers × Firebolt × DevRelSquad)
+- **Sandbox & Production Modes**: Preview emails in development, send real emails in production
 
 ## Key Capabilities
 
@@ -33,6 +34,8 @@ Uses Gemini to transform structured data into natural language reports with:
 
 ### 2. Email Integration
 Sends reports via Gmail SMTP with:
+- **Professional HTML templates** with responsive design
+- **Branded footer** featuring: Google for Developers × Firebolt × DevRelSquad
 - Sandbox mode for development (preview only)
 - Production mode for real email delivery
 - Error handling and status tracking
@@ -184,8 +187,9 @@ async sendEmail(recipient: string, subject: string, body: string): Promise<boole
 **Test Email Delivery:**
 1. Open browser console (F12)
 2. Generate a report with an email address
-3. Check console for the email preview
-4. Look for "📧 Email Preview (Sandbox Mode)" output
+3. Click "Preview HTML Email" button to see the formatted email
+4. Check console for "📧 Email Preview (Sandbox Mode)" output
+5. Notice the professional HTML template with branded footer
 
 </Exercise>
 
@@ -232,6 +236,8 @@ Try generating reports with different data sources:
 <Checkpoint items={[
   "Financial report contains all 4 sections (Executive Summary, Key Metrics, Trends, Recommendations)",
   "Email preview displays in console with recipient and subject",
+  "HTML email template includes branded footer (Google for Developers × Firebolt × DevRelSquad)",
+  "Preview HTML Email button opens formatted email in new window",
   "Different report types (summary/detailed/financial) generate different outputs",
   "Data source selection changes the report content appropriately",
   "Email status (sent/preview) is tracked and displayed"

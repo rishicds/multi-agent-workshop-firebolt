@@ -279,7 +279,8 @@ curl -X POST http://localhost:3000/api/analytics \
   "API POST endpoint validates and executes queries",
   "API GET endpoint returns available query types",
   "Error handling returns appropriate status codes (400, 500)",
-  "Queries use proper SQL syntax with time ranges and aggregations"
+  "Queries use proper SQL syntax with time ranges and aggregations",
+  "(Optional) Natural language query support implemented with Gemini"
 ]} />
 
 ## Exercise 3: Advanced Query - Customer Growth
@@ -490,6 +491,34 @@ CALL RECOMMEND_DDL(
 ## Advanced: Add More Query Types
 
 Want to extend your analytics? Try adding:
+
+### Natural Language Queries (Self-Study)
+
+Add support for natural language queries using Gemini AI:
+
+```typescript
+async executeNaturalLanguageQuery(naturalLanguageQuery: string): Promise<{
+  success: boolean;
+  sql?: string;
+  result?: QueryResult;
+  error?: string;
+}> {
+  // Use Gemini to convert natural language to SQL
+  const prompt = `Convert this natural language query to SQL for the ${this.tableName} table: "${naturalLanguageQuery}"`;
+  const generatedSQL = await this.gemini.generate('gemini-2.0-flash', prompt);
+  
+  // Execute the generated SQL
+  const result = await this.mcpClient.execute(generatedSQL);
+  
+  return { success: true, sql: generatedSQL, result };
+}
+```
+
+**Try it yourself:**
+- Initialize `GeminiService` in the constructor
+- Add schema information to the prompt
+- Clean up generated SQL (remove markdown code blocks)
+- Add error handling for invalid SQL
 
 ### Revenue Time Series
 ```typescript

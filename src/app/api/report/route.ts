@@ -56,7 +56,12 @@ export async function POST(request: NextRequest) {
         );
       }
       
-      emailSent = await reportAgent.sendEmail(recipient, subject, report);
+      emailSent = await reportAgent.sendEmail(
+        recipient, 
+        subject, 
+        report, 
+        reportType as 'summary' | 'detailed' | 'financial'
+      );
     }
     
     return NextResponse.json({ 

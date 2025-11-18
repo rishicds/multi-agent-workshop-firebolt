@@ -92,6 +92,8 @@ export class OrchestratorAgent {
    * - Breaks down complex queries into sub-tasks
    * - Coordinates multiple agents in sequence
    * - Returns an ordered array of executed steps with outputs
+   * 
+   * NEW: Supports natural language queries via Gemini + Firebolt MCP
    */
   async handleMultiStepQuery(userQuery: string) {
     const steps: any[] = [];
@@ -107,25 +109,31 @@ export class OrchestratorAgent {
     const recipientMatch = lower.match(/[\w.-]+@[\w.-]+\.[a-z]{2,}/);
     const recipient = recipientMatch?.[0];
 
+    // Check if this is a predefined query or a natural language query
+    const isPredefinedQuery = hasRevenue || hasTopProducts || hasUserBehavior || hasCategoryAnalysis || hasBrandAnalysis;
+
     try {
       let analyticsResult: any;
       let queryType: string = '';
+      let generatedSQL: string | undefined;
       
-      // Step 1: Analytics query based on detected intent
-      if (hasRevenue) {
-        queryType = 'revenue';
-      } else if (hasTopProducts) {
-        queryType = 'top_products';
-      } else if (hasUserBehavior) {
-        queryType = 'user_behavior';
-      } else if (hasCategoryAnalysis) {
-        queryType = 'category_performance';
-      } else if (hasBrandAnalysis) {
-        queryType = 'brand_analysis';
-      }
+      // Step 1: Analytics query
+      const analytics = new AnalyticsAgent();
       
-      if (queryType) {
-        const analytics = new AnalyticsAgent();
+      if (isPredefinedQuery) {
+        // Use predefined queries for well-known patterns
+        if (hasRevenue) {
+          queryType = 'revenue';
+        } else if (hasTopProducts) {
+          queryType = 'top_products';
+        } else if (hasUserBehavior) {
+          queryType = 'user_behavior';
+        } else if (hasCategoryAnalysis) {
+          queryType = 'category_performance';
+        } else if (hasBrandAnalysis) {
+          queryType = 'brand_analysis';
+        }
+        
         analyticsResult = await analytics.executeQuery(queryType);
         steps.push({ 
           step: 'analytics', 
@@ -133,65 +141,88 @@ export class OrchestratorAgent {
           output: analyticsResult,
           status: 'completed'
         });
+      } else {
+        // Use natural language query via Gemini + Firebolt MCP
+        const nlResult = await analytics.executeNaturalLanguageQuery(userQuery);
         
-        // Step 2: Generate report if requested or if email is needed
-        if (hasReport || recipient) {
-          const geminiKey = process.env.GEMINI_API_KEY;
-          if (!geminiKey) {
-            throw new Error('GEMINI_API_KEY environment variable is required for report generation');
-          }
-          
-          const reportAgent = new ReportAgent(geminiKey);
-          
-          // Determine report type based on query
-          const reportType = hasRevenue || hasCategoryAnalysis || hasBrandAnalysis 
-            ? 'financial' 
-            : 'summary';
-          
-          let report: string;
-          if (reportType === 'financial') {
-            report = await reportAgent.generateFinancialReport(analyticsResult);
-          } else {
-            report = await reportAgent.generateReport(analyticsResult, 'summary');
-          }
-          
+        if (nlResult.success && nlResult.result) {
+          analyticsResult = nlResult.result;
+          generatedSQL = nlResult.sql;
           steps.push({ 
-            step: 'report', 
-            action: `generate_${reportType}_report`,
-            output: report,
+            step: 'analytics', 
+            action: 'natural_language_query',
+            query: userQuery,
+            sql: generatedSQL,
+            output: analyticsResult,
             status: 'completed'
           });
+        } else {
+          throw new Error(nlResult.error || 'Natural language query failed');
+        }
+      }
+      
+      // Step 2: Generate report if requested or if email is needed
+      if (analyticsResult && (hasReport || recipient)) {
+        const geminiKey = process.env.GEMINI_API_KEY;
+        if (!geminiKey) {
+          throw new Error('GEMINI_API_KEY environment variable is required for report generation');
+        }
+        
+        const reportAgent = new ReportAgent(geminiKey);
+        
+        // Determine report type based on query
+        const reportType = hasRevenue || hasCategoryAnalysis || hasBrandAnalysis 
+          ? 'financial' 
+          : 'summary';
+        
+        let report: string;
+        if (reportType === 'financial') {
+          report = await reportAgent.generateFinancialReport(analyticsResult);
+        } else {
+          report = await reportAgent.generateReport(analyticsResult, 'summary');
+        }
+        
+        steps.push({ 
+          step: 'report', 
+          action: `generate_${reportType}_report`,
+          output: report,
+          status: 'completed'
+        });
+        
+        // Step 3: Send email if recipient is specified
+        if (recipient) {
+          const subjectMap: Record<string, string> = {
+            revenue: 'Revenue Analysis Report',
+            top_products: 'Top Products Performance Report',
+            user_behavior: 'User Behavior Insights Report',
+            category_performance: 'Category Performance Report',
+            brand_analysis: 'Brand Analysis Report'
+          };
           
-          // Step 3: Send email if recipient is specified
-          if (recipient) {
-            const subjectMap: Record<string, string> = {
-              revenue: 'Revenue Analysis Report',
-              top_products: 'Top Products Performance Report',
-              user_behavior: 'User Behavior Insights Report',
-              category_performance: 'Category Performance Report',
-              brand_analysis: 'Brand Analysis Report'
-            };
+          const subject = queryType 
+            ? (subjectMap[queryType] || 'Analytics Report')
+            : 'Custom Analytics Report';
             
-            const subject = subjectMap[queryType] || 'Analytics Report';
-            const emailSent = await reportAgent.sendEmail(recipient, subject, report);
-            
-            steps.push({ 
-              step: 'email', 
-              action: 'send_report',
-              output: { 
-                recipient, 
-                subject,
-                sent: emailSent,
-                sandbox: true
-              },
-              status: emailSent ? 'completed' : 'failed'
-            });
-          }
+          const emailSent = await reportAgent.sendEmail(recipient, subject, report, reportType);
+          
+          steps.push({ 
+            step: 'email', 
+            action: 'send_report',
+            output: { 
+              recipient, 
+              subject,
+              sent: emailSent,
+              sandbox: true,
+              reportType
+            },
+            status: emailSent ? 'completed' : 'failed'
+          });
         }
       }
       
       return {
         success: true,
+        query: userQuery,
         totalSteps: steps.length,
         steps
       };
@@ -205,6 +236,7 @@ export class OrchestratorAgent {
       
       return {
         success: false,
+        query: userQuery,
         totalSteps: steps.length,
         steps,
         error: error instanceof Error ? error.message : 'Unknown error'

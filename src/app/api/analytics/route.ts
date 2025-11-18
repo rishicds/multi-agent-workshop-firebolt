@@ -3,11 +3,28 @@ import { AnalyticsAgent } from '@/lib/agents/analytics';
 
 export async function POST(request: NextRequest) {
   try {
-    const { queryType } = await request.json();
+    const { queryType, naturalLanguageQuery } = await request.json();
     
+    const analytics = new AnalyticsAgent();
+    
+    // Handle natural language queries
+    if (naturalLanguageQuery) {
+      const result = await analytics.executeNaturalLanguageQuery(naturalLanguageQuery);
+      
+      return NextResponse.json({
+        success: result.success,
+        type: 'natural_language',
+        query: naturalLanguageQuery,
+        sql: result.sql,
+        result: result.result,
+        error: result.error,
+      });
+    }
+    
+    // Handle pre-defined queries
     if (!queryType) {
       return NextResponse.json(
-        { error: 'queryType is required' }, 
+        { error: 'Either queryType or naturalLanguageQuery is required' }, 
         { status: 400 }
       );
     }
@@ -31,11 +48,11 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    const analytics = new AnalyticsAgent();
     const result = await analytics.executeQuery(queryType);
     
     return NextResponse.json({ 
       success: true,
+      type: 'predefined',
       queryType,
       result 
     });

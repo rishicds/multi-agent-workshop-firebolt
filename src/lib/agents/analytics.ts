@@ -1,7 +1,9 @@
 import { FireboltMCPClient, QueryResult } from '@/lib/services/firebolt-mcp';
+import { GeminiService } from '@/lib/services/gemini';
 
 export class AnalyticsAgent {
   private mcpClient: FireboltMCPClient;
+  private gemini: GeminiService;
   private tableName: string;
   
   /**
@@ -37,6 +39,10 @@ export class AnalyticsAgent {
       database,
       engine,
     });
+    
+    // Initialize Gemini for natural language queries
+    const geminiApiKey = process.env.GEMINI_API_KEY || '';
+    this.gemini = new GeminiService(geminiApiKey);
     
     // Use the schema.table format for Firebolt queries
     // Default schema is 'public' if not specified
@@ -339,6 +345,83 @@ Performance Impact:
     `;
     
     return await this.mcpClient.execute(query);
+  }
+
+  /**
+   * 🆕 NATURAL LANGUAGE QUERY
+   * 
+   * Uses Gemini to convert natural language questions into SQL queries,
+   * then executes them against Firebolt via MCP.
+   * 
+   * This is the key integration point between:
+   * - Gemini AI (for natural language understanding)
+   * - Firebolt MCP (for high-performance query execution)
+   * 
+   * @param naturalLanguageQuery - User's question in plain English
+   * @returns Query results with the generated SQL
+   */
+  async executeNaturalLanguageQuery(naturalLanguageQuery: string): Promise<{
+    success: boolean;
+    sql?: string;
+    result?: QueryResult;
+    error?: string;
+  }> {
+    try {
+      // Step 1: Use Gemini to convert natural language to SQL
+      const prompt = `You are a SQL expert for Firebolt database. Convert the following natural language query into a valid SQL query.
+
+DATABASE SCHEMA:
+Table: ${this.tableName}
+Columns:
+  - event_time     TIMESTAMPTZ NOT NULL  (when the event occurred)
+  - event_type     TEXT NOT NULL         (values: 'view', 'cart', 'purchase')
+  - product_id     BIGINT NOT NULL       (unique product identifier)
+  - category_id    TEXT NULL             (category identifier)
+  - category_code  TEXT NULL             (category code/name)
+  - brand          TEXT NULL             (product brand name)
+  - price          NUMERIC(38,9) NULL    (price - NULL for 'view' events)
+  - user_id        TEXT NULL             (unique user identifier)
+  - user_session   TEXT NULL             (session identifier)
+
+IMPORTANT RULES:
+1. Always filter NULL values when grouping by nullable columns (brand, category_code, etc.)
+2. Use COALESCE() to replace NULL values with defaults like 'Unknown' or 'Uncategorized'
+3. For revenue queries, filter WHERE event_type = 'purchase' AND price IS NOT NULL
+4. Use NULLIF() in division to avoid divide-by-zero errors
+5. Use ROUND() for monetary values (2 decimal places)
+6. Return only the SQL query, no explanations or markdown
+7. Use ${this.tableName} as the table name
+8. Limit results to 100 rows maximum
+
+USER QUESTION:
+${naturalLanguageQuery}
+
+SQL QUERY (only return the SQL, no markdown or explanations):`;
+
+      const generatedSQL = await this.gemini.generate('gemini-2.0-flash', prompt);
+      
+      // Clean up the SQL (remove markdown code blocks if present)
+      let cleanSQL = generatedSQL.trim();
+      if (cleanSQL.startsWith('```sql')) {
+        cleanSQL = cleanSQL.replace(/```sql\n?/g, '').replace(/```\n?/g, '').trim();
+      } else if (cleanSQL.startsWith('```')) {
+        cleanSQL = cleanSQL.replace(/```\n?/g, '').trim();
+      }
+
+      // Step 2: Execute the generated SQL via Firebolt MCP
+      const result = await this.mcpClient.execute(cleanSQL);
+
+      return {
+        success: true,
+        sql: cleanSQL,
+        result: result,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
   }
 }
 

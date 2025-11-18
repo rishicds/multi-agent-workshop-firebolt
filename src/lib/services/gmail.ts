@@ -51,7 +51,12 @@ export class GmailClient {
 
   async send(payload: EmailPayload): Promise<boolean> {
     if (this.sandbox) {
-      logger.info('Gmail sandbox send', payload);
+      logger.info('Gmail sandbox send', { 
+        recipient: payload.recipient,
+        subject: payload.subject,
+        bodyLength: payload.body.length,
+        isHTML: payload.body.includes('<!DOCTYPE html>')
+      });
       return true;
     }
     
@@ -59,18 +64,28 @@ export class GmailClient {
       const fromName = process.env.GMAIL_FROM_NAME || 'Multi-Agent Workshop';
       const fromEmail = process.env.GMAIL_FROM_EMAIL || process.env.GMAIL_USER;
       
+      // Check if body is HTML
+      const isHTML = payload.body.includes('<!DOCTYPE html>') || payload.body.includes('<html');
+      
       const mailOptions = {
         from: `"${fromName}" <${fromEmail}>`,
         to: payload.recipient,
         subject: payload.subject,
-        text: payload.body,
-        html: payload.body.replace(/\n/g, '<br>'), // Simple text to HTML conversion
+        // If HTML, use html field; otherwise, convert plain text to simple HTML
+        ...(isHTML 
+          ? { html: payload.body }
+          : { 
+              text: payload.body,
+              html: payload.body.replace(/\n/g, '<br>') 
+            }
+        ),
       };
       
       const info = await this.transporter.sendMail(mailOptions);
       logger.info('Gmail real send successful', { 
         messageId: info.messageId,
-        recipient: payload.recipient 
+        recipient: payload.recipient,
+        isHTML
       });
       return true;
     } catch (error) {

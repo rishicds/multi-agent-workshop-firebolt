@@ -148,17 +148,30 @@ Try the prebuilt queries in the Analytics Demo on the homepage:
 <TestButton label="Test Analytics Queries" message="Use the Analytics Demo to run revenue and top_products queries!" />
 
 **What to try:**
+
+**Predefined Queries:**
 1. Select "Revenue" query type → See total revenue, purchases, customers
 2. Select "Top Products" → See best-selling products with purchase counts
 3. Select "User Behavior" → See event counts by type
 4. Select "Category Performance" → See top categories by revenue
 5. Select "Brand Analysis" → See top brands by revenue
 
+**Natural Language Queries (Gemini + Firebolt MCP):**
+1. Switch to "Natural Language" mode
+2. Ask questions like:
+   - "What are the top 5 selling products?"
+   - "Show me revenue by brand"
+   - "Which categories have the highest average price?"
+3. See Gemini generate SQL and Firebolt execute it
+4. View the generated SQL query along with results
+
 **What you'll notice:**
-- Queries return structured JSON data
+- Predefined queries return structured JSON data instantly
+- Natural language queries show the AI-generated SQL
 - Results include aggregations (SUM, COUNT, AVG)
 - Time ranges are already applied (7 or 30 days)
 - Data is realistic ecommerce transaction data
+- Gemini understands your business questions and creates proper SQL
 
 ## Understanding Query Performance
 
@@ -214,8 +227,9 @@ PRIMARY INDEX event_time;`} />
 In **Step 4: Analytics Agent**, you'll:
 1. ✅ Implement the `AnalyticsAgent` class with all 5 query types
 2. ✅ Build the Analytics API route
-3. ✅ Add advanced queries (customer growth, conversion funnel)
-4. ✅ Learn query optimization techniques
+3. ✅ Add natural language query support with Gemini + Firebolt MCP
+4. ✅ Add advanced queries (customer growth, conversion funnel)
+5. ✅ Learn query optimization techniques
 
 <Checkpoint items={[
   "Understand ecommerce table schema (event_time, event_type, price, user_id)",

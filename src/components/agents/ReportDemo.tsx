@@ -31,6 +31,41 @@ export function ReportDemo() {
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
+  async function previewHTMLEmail() {
+    if (!result || !result.report) {
+      setError('Please generate a report first before previewing the email');
+      return;
+    }
+    
+    try {
+      const res = await fetch('/api/report/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          report: result.report,
+          reportType: reportType 
+        }),
+      });
+      
+      if (!res.ok) {
+        throw new Error('Failed to generate preview');
+      }
+      
+      const htmlContent = await res.text();
+      
+      // Open in new window
+      const previewWindow = window.open('', '_blank');
+      if (previewWindow) {
+        previewWindow.document.write(htmlContent);
+        previewWindow.document.close();
+      } else {
+        setError('Please allow popups to preview the email');
+      }
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }
+
   async function fetchAnalyticsData() {
     setFetchingData(true);
     setError(null);
@@ -270,7 +305,18 @@ export function ReportDemo() {
 
               {/* Report Content */}
               <div className="bg-white rounded-xl p-5 shadow-[3px_3px_8px_#d4ede1,_-3px_-3px_8px_#ffffff]">
-                <h4 className="font-semibold mb-3 text-lg text-emerald-800">Report Content:</h4>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-semibold text-lg text-emerald-800">Report Content:</h4>
+                  <Button
+                    onClick={previewHTMLEmail}
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                  >
+                    <Mail className="h-4 w-4" />
+                    Preview HTML Email
+                  </Button>
+                </div>
                 <article className="prose prose-sm max-w-none whitespace-pre-wrap text-sm leading-relaxed text-slate-700" aria-live="polite">
                   {result.report}
                 </article>
