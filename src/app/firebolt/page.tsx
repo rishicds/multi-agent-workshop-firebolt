@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import FireboltSetupSection from '@/components/firebolt/FireboltSetupSection';
 import CreateEngineSection from '@/components/firebolt/CreateEngineSection';
@@ -9,7 +9,7 @@ import FireboltServiceAccountSection from '@/components/firebolt/FireboltService
 import GeminiSetupSection from '@/components/firebolt/GeminiSetupSection';
 import GmailSetupSection from '@/components/firebolt/GmailSetupSection';
 
-export default function FireboltPage() {
+function FireboltContent() {
   const searchParams = useSearchParams();
   const [selectedSection, setSelectedSection] = useState('setup');
 
@@ -65,5 +65,27 @@ export default function FireboltPage() {
         )}
       </main>
     </div>
+  );
+}
+
+function LoadingFallback() {
+  return (
+    <div className="flex h-full" style={{ fontFamily: 'Coolvetica, sans-serif' }}>
+      <main className="flex-1 overflow-auto p-8">
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-200 rounded w-1/4 mb-4"></div>
+          <div className="h-4 bg-gray-200 rounded w-1/2 mb-2"></div>
+          <div className="h-4 bg-gray-200 rounded w-1/3"></div>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+export default function FireboltPage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <FireboltContent />
+    </Suspense>
   );
 }
