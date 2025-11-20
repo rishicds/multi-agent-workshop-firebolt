@@ -1,12 +1,12 @@
 ---
-title: "Orchestrator Agent"
-description: "Build an orchestrator agent that coordinates multiple agents"
-duration: "45 minutes"
+title: "Analytics Agent"
+description: "Build a data analytics agent with Firebolt queries"
+duration: "60 minutes"
 difficulty: "Intermediate"
 objectives:
-  - "Implement intent parsing with Gemini"
-  - "Build multi-step query orchestration"
-  - "Route tasks to appropriate agents"
+  - "Implement the Analytics Agent class"
+  - "Build API routes for analytics queries"
+  - "Add advanced query methods"
 ---
 
 import { CodeBlock } from '@/components/workshop/CodeBlock';
@@ -17,77 +17,69 @@ import { TestButton } from '@/components/workshop/TestButton';
 
 ## Overview
 
-The **Orchestrator Agent** is the brain of your multi-agent system. It uses Gemini AI to understand user intent and coordinates multiple agents (Analytics, Report) to fulfill complex requests. In this tutorial, you'll build:
+The **Analytics Agent** is your data-fetching powerhouse. It connects to Firebolt via the MCP client to execute SQL queries and return ecommerce insights. In this tutorial, you'll build:
 
-1. **Intent parsing** - Use Gemini to classify user queries
-2. **Multi-step orchestration** - Chain analytics → report → email workflows
-3. **Task routing** - Direct queries to the appropriate agent
+1. **AnalyticsAgent class** (`src/lib/agents/analytics.ts`) - Executes predefined queries
+2. **Analytics API route** (`src/app/api/analytics/route.ts`) - HTTP endpoint for the agent
+3. **Advanced query methods** - Customer growth and conversion funnels
 
 ## Key Concepts
 
-### Orchestrator Workflow
-```
-User Query → Parse Intent → Route to Agent(s) → Execute → Return Results
-```
+### Supported Query Types
+The agent supports five main query types:
+- `revenue` - Total revenue, purchases, customer metrics (last 30 days)
+- `top_products` - Best-selling products with revenue data (last 30 days)
+- `user_behavior` - Event counts and user engagement (last 7 days)
+- `category_performance` - Performance by product category (last 30 days)
+- `brand_analysis` - Performance by brand (last 30 days)
 
-### Intent Classification
-The orchestrator classifies queries into:
-- `analytics` - Data queries (revenue, products, user behavior)
-- `report` - Report generation requests
-- `email` - Email delivery requests
-- `multi_step` - Combined workflows (analytics + report + email)
+### Firebolt MCP Integration
+The agent uses `FireboltMCPClient` to execute queries:
 
-### Agent Coordination
-The orchestrator manages three agents:
-- **AnalyticsAgent** - Already implemented ✅
-- **ReportAgent** - Partially implemented (generateReport needs completion)
-- **OrchestratorAgent** - This is what you'll build!
+<CodeBlock language="typescript" code={`import { FireboltMCPClient, QueryResult } from '@/lib/services/firebolt-mcp';
 
-## Implement Intent Parsing
+const mcpClient = new FireboltMCPClient({
+  clientId: process.env.FIREBOLT_CLIENT_ID,
+  clientSecret: process.env.FIREBOLT_CLIENT_SECRET,
+  account: process.env.FIREBOLT_ACCOUNT,
+  database: process.env.FIREBOLT_DATABASE
+});
 
-The `parseIntent` method is **already implemented** in `src/lib/agents/orchestrator.ts`. It uses Gemini AI to classify user queries.
+const result = await mcpClient.execute(sqlQuery);`} />
 
-**What it does:**
-- Uses Gemini 2.5 Flash to analyze user queries
-- Returns intent classification: `analytics`, `report`, `email`, or `multi_step`
-- Extracts entities: query_type, time_range, recipient
-- Includes confidence score (0.0 to 1.0)
+## Exercise 1: Build the Analytics Agent Class(TODO)
 
-**Example:**
-```typescript
-const intent = await orchestrator.parseIntent("Show me revenue and email to john@example.com");
-// Returns: { intent: 'multi_step', entities: { query_type: 'revenue', recipient: 'john@example.com' }, confidence: 0.95 }
-```
+Let's implement the core `AnalyticsAgent` class with the `executeQuery` method.
 
----
+<Exercise title="Implement executeQuery method">
 
-##Complete the Analytics Agent executeQuery(TODO)
-
-**📝 File:** `src/lib/agents/analytics.ts`
-
-Look for the `TODO: Exercise 1` comment. The query building logic exists, but you need to implement the execution logic.
-
-<Exercise title="Implement executeQuery execution logic">
-
-The `buildQueries` function already creates all SQL queries. You need to:
-1. Validate that `queryType` exists in the queries object
-2. Throw an error if the query type is unknown
-3. Execute the query using `this.mcpClient.execute()`
-4. Return the result
-
-
+Open `src/lib/agents/analytics.ts` and implement the `executeQuery` method that:
+1. Takes a `queryType` parameter (string)
+2. Maps the type to a predefined SQL query
+3. Executes the query using the MCP client
+4. Returns the query result
 
 **Requirements:**
-- Check if `queries[queryType]` exists
-- If not, throw error: `Unknown query type: ${queryType}`
-- Execute: `await this.mcpClient.execute(queries[queryType])`
-- Return the result
+- Support all 5 query types: `revenue`, `top_products`, `user_behavior`, `category_performance`, `brand_analysis`
+- Use `this.tableName` for the table reference (supports database prefix)
+- Throw an error for unknown query types
+- Use appropriate time ranges (30 days for most, 7 days for user_behavior)
+
+**Example revenue query structure:**
+```sql
+SELECT 
+  SUM(price) as total_revenue,
+  COUNT(*) as total_purchases,
+  COUNT(DISTINCT user_id) as unique_customers,
+  ROUND(SUM(price) / NULLIF(COUNT(DISTINCT user_id), 0), 2) as avg_revenue_per_customer
+FROM {tableName}
+WHERE event_type = 'purchase' 
+AND event_time > CURRENT_DATE - INTERVAL '30 days'
+```
 
 <Hint title="Full implementation (click to reveal)">
-<CodeBlock language="typescript" code={`async executeQuery(queryType: string): Promise<QueryResult> {
-  const queries = buildQueries(this.tableName);
-  
-  if (!queries[queryType]) {
+<CodeBlock language="typescript" code={`
+ if (!queries[queryType]) {
     throw new Error(\`Unknown query type: \${queryType}\`);
   }
 
@@ -97,260 +89,390 @@ The `buildQueries` function already creates all SQL queries. You need to:
 
 </Exercise>
 
----
+Build the Analytics API Route
 
-## Complete the Report Agent generateReport
+Now let's create the HTTP API endpoint that exposes the Analytics Agent.
 
-**📝 File:** `src/lib/agents/report.ts`
+<Exercise title="Implement the Analytics API route">
 
-Look for the `TASK 1` comment. The prompt builder is already implemented in `reportPrompts.ts`, but you need to connect it to Gemini.
+Open `src/app/api/analytics/route.ts` and implement:
 
-<Exercise title="Implement generateReport method">
+**POST endpoint:**
+1. Extract `queryType` from request body
+2. Validate that queryType is provided
+3. Validate that queryType is one of the 5 supported types
+4. Create an `AnalyticsAgent` instance
+5. Execute the query
+6. Return JSON response with success, queryType, and result
 
-
-
-**Requirements:**
-1. Use `this.model.generateContent(prompt)` to call Gemini
-2. Extract the text from the result using `result.response.text()`
-3. Return the generated report text
+**GET endpoint:**
+1. Return a list of available query types with descriptions
 
 <Hint title="Full implementation (click to reveal)">
-<CodeBlock language="typescript" code={`async generateReport(data: any, reportType: 'summary' | 'detailed' = 'summary'): Promise<string> {
-  const prompt = buildSummaryPrompt(data, reportType);
+<CodeBlock language="typescript" code={`import { NextRequest, NextResponse } from 'next/server';
+import { AnalyticsAgent } from '@/lib/agents/analytics';
 
-  const result = await this.model.generateContent(prompt);
-  return result.response.text();
+export async function POST(request: NextRequest) {
+  try {
+    const { queryType } = await request.json();
+    
+    if (!queryType) {
+      return NextResponse.json(
+        { error: 'queryType is required' }, 
+        { status: 400 }
+      );
+    }
+    
+    // Validate queryType
+    const validQueryTypes = [
+      'revenue',
+      'top_products',
+      'user_behavior',
+      'category_performance',
+      'brand_analysis'
+    ];
+    
+    if (!validQueryTypes.includes(queryType)) {
+      return NextResponse.json(
+        { 
+          error: \`Invalid queryType. Must be one of: \${validQueryTypes.join(', ')}\`,
+          validQueryTypes
+        }, 
+        { status: 400 }
+      );
+    }
+    
+    const analytics = new AnalyticsAgent();
+    const result = await analytics.executeQuery(queryType);
+    
+    return NextResponse.json({ 
+      success: true,
+      queryType,
+      result 
+    });
+  } catch (error: any) {
+    console.error('Analytics API error:', error);
+    return NextResponse.json(
+      { 
+        success: false,
+        error: error?.message ?? 'Unknown error',
+        details: process.env.NODE_ENV === 'development' ? error?.stack : undefined
+      }, 
+      { status: 500 }
+    );
+  }
+}
+
+// Add GET endpoint for available query types
+export async function GET() {
+  return NextResponse.json({
+    availableQueryTypes: [
+      { 
+        type: 'revenue', 
+        description: 'Total revenue, purchases, and customer metrics for the last 30 days' 
+      },
+      { 
+        type: 'top_products', 
+        description: 'Top 10 products by purchase count in the last 30 days' 
+      },
+      { 
+        type: 'user_behavior', 
+        description: 'User behavior analysis (views, carts, purchases) for the last 7 days' 
+      },
+      { 
+        type: 'category_performance', 
+        description: 'Category performance metrics for the last 30 days' 
+      },
+      { 
+        type: 'brand_analysis', 
+        description: 'Brand performance analysis for the last 30 days' 
+      }
+    ]
+  });
 }`} />
 </Hint>
 
-</Exercise>
+**Test your API:**
+```bash
+# Get available query types
+curl http://localhost:3000/api/analytics
 
----
-
-## Implement Multi-Step Query Orchestration
-
-**📝 File:** `src/lib/agents/orchestrator.ts`
-
-Look for the `TODO: Exercise 3` comment in the `handleMultiStepQuery` method.
-
-<Exercise title="Complete the multi-step orchestration">
-
-The method already has the workflow structure in place. You need to add the intent parsing at the beginning.
-
-**Current code:**
-```typescript
-async handleMultiStepQuery(userQuery: string) {
-  const steps: any[] = [];
-  
-  try {
-    // TODO: Exercise 3 - Parse the user query to extract intent and entities (2-3 lines)
-    // HINT: Use this.parseIntent(userQuery) and extract queryType and recipient from entities
-    const intent = null; // Replace with parseIntent call
-    const queryType = null; // Extract from intent.entities.query_type
-    const recipient = null; // Extract from intent.entities.recipient
-    
-    // ... rest of the orchestration logic
-  }
-}
+# Execute a revenue query
+curl -X POST http://localhost:3000/api/analytics \
+  -H "Content-Type: application/json" \
+  -d '{"queryType": "revenue"}'
 ```
 
-**Requirements:**
-1. Call `this.parseIntent(userQuery)` and store the result in `intent`
-2. Extract `queryType` from `intent.entities.query_type`
-3. Extract `recipient` from `intent.entities.recipient`
-
-**Example workflow:**
-- User asks: "Show me revenue and email to john@example.com"
-- Intent parsed: `{ intent: 'multi_step', entities: { query_type: 'revenue', recipient: 'john@example.com' }}`
-- Steps executed:
-  1. Analytics query (revenue)
-  2. Report generation
-  3. Email delivery
-
-<Hint title="Full implementation (click to reveal)">
-<CodeBlock language="typescript" code={`// TODO: Exercise 3 - Parse the user query to extract intent and entities (2-3 lines)
-const intent = await this.parseIntent(userQuery);
-const queryType = intent.entities.query_type;
-const recipient = intent.entities.recipient;`} />
-</Hint>
-
 </Exercise>
-
----
-
-## Checkpoint
 
 <Checkpoint items={[
-  "parseIntent method works correctly (already implemented ✅)",
-  "AnalyticsAgent executeQuery validates query types and executes queries",
-  "ReportAgent generateReport calls Gemini and returns formatted reports",
-  "OrchestratorAgent handleMultiStepQuery parses intent and orchestrates workflow",
-  "Multi-step queries chain analytics → report → email successfully",
-  "Error handling returns appropriate status codes and messages"
+  "AnalyticsAgent class has executeQuery method with all 5 query types",
+  "API POST endpoint validates and executes queries",
+  "API GET endpoint returns available query types",
+  "Error handling returns appropriate status codes (400, 500)",
+  "Queries use proper SQL syntax with time ranges and aggregations",
+  "(Optional) Natural language query support implemented with Gemini"
 ]} />
 
----
+## Advanced Query - Customer Growth
 
-## Orchestration Architecture
+Let's add a method to track month-over-month customer growth using SQL window functions.
 
-The orchestrator uses a **sequential workflow**:
+<Exercise title="Implement getCustomerGrowth method">
 
-```
-┌─────────────────┐
-│  User Query     │
-│  "Show revenue  │
-│  and email it"  │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ parseIntent()   │  ← Uses Gemini AI
-│ Intent: multi_  │
-│ step            │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Step 1:         │
-│ Analytics Query │  ← AnalyticsAgent
-│ (revenue)       │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Step 2:         │
-│ Generate Report │  ← ReportAgent
-│ (from data)     │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Step 3:         │
-│ Send Email      │  ← ReportAgent.sendEmail()
-│ (to recipient)  │
-└─────────────────┘
-```
+Add a `getCustomerGrowth()` method to the `AnalyticsAgent` class that:
+1. Calculates unique customers per month using `DATE_TRUNC`
+2. Uses `LAG` window function to get previous month's count
+3. Calculates growth percentage: `((current - previous) / previous) * 100`
+4. Handles edge cases: NULL for first month, divide-by-zero protection
+5. Orders results by month descending
 
----
+**Expected output columns:**
+- `month` - Month start date
+- `new_customers` - Unique customers that month
+- `prev_month_customers` - Previous month's count (NULL for first month)
+- `growth_pct` - Percentage growth (NULL for first month or when prev = 0)
 
-## Test Your Orchestrator
-
-<TestButton label="Test Orchestrator" message="Use the Orchestrator Demo to test multi-step workflows!" />
-
-**Test scenarios:**
-1. ✅ **Simple analytics**: "Show me revenue" → Should execute analytics query only
-2. ✅ **Report generation**: "Generate a revenue report" → Should run analytics + report
-3. ✅ **Email delivery**: "Show top products and email to test@example.com" → Should run analytics + report + email
-4. ✅ **Natural language**: "What are my best selling products?" → Should parse intent and execute
-
-**Expected workflow for "Show revenue and email to john@example.com":**
-```json
-{
-  "success": true,
-  "totalSteps": 3,
-  "steps": [
-    {
-      "step": "analytics",
-      "action": "revenue_query",
-      "status": "completed",
-      "output": { /* revenue data */ }
-    },
-    {
-      "step": "report",
-      "action": "generate_financial_report",
-      "status": "completed",
-      "output": "# Revenue Analysis Report..."
-    },
-    {
-      "step": "email",
-      "action": "send_report",
-      "status": "completed",
-      "output": {
-        "recipient": "john@example.com",
-        "subject": "Revenue Analysis Report",
-        "sent": true,
-        "sandbox": true
-      }
-    }
-  ]
-}
-```
-
----
-
-## Advanced: Extend the Orchestrator
-
-Want to add more capabilities? Try these:
-
-### 1. Add Retry Logic
-```typescript
-async executeWithRetry(fn: () => Promise<any>, maxRetries = 3) {
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      return await fn();
-    } catch (error) {
-      if (i === maxRetries - 1) throw error;
-      await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, i)));
-    }
-  }
-}
-```
-
-### 2. Add Parallel Execution
-For independent tasks that don't depend on each other:
-```typescript
-async handleParallelQuery(queries: string[]) {
-  const analytics = new AnalyticsAgent();
-  const results = await Promise.all(
-    queries.map(q => analytics.executeQuery(q))
-  );
-  return results;
-}
-```
-
-### 3. Add Caching
-Cache frequently requested reports:
-```typescript
-private cache = new Map<string, { data: any, timestamp: number }>();
-
-async getCachedReport(queryType: string, ttl = 300000) { // 5 min TTL
-  const cached = this.cache.get(queryType);
-  if (cached && Date.now() - cached.timestamp < ttl) {
-    return cached.data;
-  }
+<Hint title="Full implementation (click to reveal)">
+<CodeBlock language="typescript" code={`async getCustomerGrowth(): Promise<QueryResult> {
+  const query = \`
+    WITH monthly_customers AS (
+      SELECT
+        DATE_TRUNC('month', event_time) as month,
+        COUNT(DISTINCT user_id) as new_customers
+      FROM \${this.tableName}
+      WHERE event_type = 'purchase'
+      AND event_time > CURRENT_DATE - INTERVAL '12 months'
+      GROUP BY DATE_TRUNC('month', event_time)
+    )
+    SELECT
+      month,
+      new_customers,
+      LAG(new_customers) OVER (ORDER BY month) as prev_month_customers,
+      CASE 
+        WHEN LAG(new_customers) OVER (ORDER BY month) = 0 OR LAG(new_customers) OVER (ORDER BY month) IS NULL
+        THEN NULL
+        ELSE ROUND(
+          ((new_customers - LAG(new_customers) OVER (ORDER BY month))::NUMERIC 
+          / LAG(new_customers) OVER (ORDER BY month)) * 100, 2
+        )
+      END as growth_pct
+    FROM monthly_customers
+    ORDER BY month DESC
+  \`;
   
-  const data = await this.executeQuery(queryType);
-  this.cache.set(queryType, { data, timestamp: Date.now() });
-  return data;
-}
+  return await this.mcpClient.execute(query);
+}`} />
+</Hint>
+
+**Key SQL techniques:**
+- `WITH` clause for readable CTEs
+- `DATE_TRUNC('month', ...)` for monthly grouping
+- `LAG(...) OVER (ORDER BY month)` for previous month
+- `CASE` statement for NULL handling
+- `::NUMERIC` for type casting to avoid integer division
+
+</Exercise>
+
+## Advanced Query - Conversion Funnel
+
+Add a conversion funnel analysis to track the user journey from view → cart → purchase.
+
+<Exercise title="Implement getConversionFunnel method">
+
+Add a `getConversionFunnel()` method that:
+1. Groups events by user_id and user_session
+2. Uses `MAX(CASE WHEN ...)` to flag if each event type occurred
+3. Calculates conversion rates at each funnel stage
+4. Returns aggregate funnel metrics
+
+**Expected output:**
+- `total_views` - Total sessions with views
+- `total_cart_adds` - Total sessions with cart additions
+- `total_purchases` - Total sessions with purchases
+- `view_to_cart_rate` - Percentage who added to cart after viewing
+- `cart_to_purchase_rate` - Percentage who purchased after cart
+- `overall_conversion_rate` - Percentage who purchased after viewing
+
+<Hint title="Full implementation (click to reveal)">
+<CodeBlock language="typescript" code={`async getConversionFunnel(): Promise<QueryResult> {
+  const query = \`
+    WITH funnel_data AS (
+      SELECT 
+        user_id,
+        user_session,
+        MAX(CASE WHEN event_type = 'view' THEN 1 ELSE 0 END) as viewed,
+        MAX(CASE WHEN event_type = 'cart' THEN 1 ELSE 0 END) as added_to_cart,
+        MAX(CASE WHEN event_type = 'purchase' THEN 1 ELSE 0 END) as purchased
+      FROM \${this.tableName}
+      WHERE event_time > CURRENT_DATE - INTERVAL '30 days'
+      GROUP BY user_id, user_session
+    )
+    SELECT 
+      SUM(viewed) as total_views,
+      SUM(added_to_cart) as total_cart_adds,
+      SUM(purchased) as total_purchases,
+      ROUND((SUM(added_to_cart)::NUMERIC / NULLIF(SUM(viewed), 0)) * 100, 2) as view_to_cart_rate,
+      ROUND((SUM(purchased)::NUMERIC / NULLIF(SUM(added_to_cart), 0)) * 100, 2) as cart_to_purchase_rate,
+      ROUND((SUM(purchased)::NUMERIC / NULLIF(SUM(viewed), 0)) * 100, 2) as overall_conversion_rate
+    FROM funnel_data
+  \`;
+  
+  return await this.mcpClient.execute(query);
+}`} />
+</Hint>
+
+**Funnel Analysis Insights:**
+- Low view-to-cart rate? Improve product descriptions or pricing
+- Low cart-to-purchase rate? Reduce checkout friction or shipping costs
+- Overall conversion < 2%? Industry average is 2-3% for ecommerce
+
+</Exercise>
+
+<Checkpoint items={[
+  "getCustomerGrowth returns monthly data with growth percentages",
+  "LAG window function correctly handles edge cases",
+  "getConversionFunnel tracks view → cart → purchase journey",
+  "Conversion rates use NULLIF to prevent divide-by-zero errors",
+  "Both methods use appropriate time ranges (12 months, 30 days)"
+]} />
+
+## Query Optimization Tips
+
+When working with large datasets (400M+ rows), optimization is critical:
+
+### 1. Use FACT TABLE (Already Optimized!)
+The `ecommerce` table is already a FACT TABLE, providing automatic optimizations:
+```sql
+-- Current table definition (already optimized!)
+CREATE FACT TABLE ecommerce (
+  event_time     TIMESTAMPTZ NOT NULL,
+  event_type     TEXT NOT NULL,
+  product_id     BIGINT NOT NULL,
+  category_id    TEXT NULL,
+  category_code  TEXT NULL,
+  brand          TEXT NULL,
+  price          NUMERIC(38, 9) NULL,
+  user_id        TEXT NULL,
+  user_session   TEXT NULL
+)
+PRIMARY INDEX event_time;
+
+-- FACT TABLE provides:
+-- ✅ Automatic sparse indexes on ALL columns
+-- ✅ Optimized compression
+-- ✅ Fast partition pruning
+-- ✅ No manual index management needed
 ```
 
-### 4. Add Task Routing (Already Implemented ✅)
-The `routeTask` method is already implemented:
+### 2. Aggregating Tables for Frequent Queries
+```sql
+-- Pre-aggregate daily revenue for faster dashboards
+CREATE AGGREGATING INDEX daily_revenue_agg ON ecommerce (
+  DATE_TRUNC('day', event_time) as date,
+  event_type,
+  SUM(price) as revenue,
+  COUNT(*) as transactions,
+  COUNT(DISTINCT user_id) as customers
+)
+WHERE event_type = 'purchase';
+```
+
+### 3. Handling NULL Fields
+Since many fields are nullable, always filter them properly:
+```sql
+-- ✅ GOOD: Filter NULL values before aggregation
+SELECT brand, COUNT(*) as purchases
+FROM ecommerce
+WHERE brand IS NOT NULL  -- Prevents NULL in results
+  AND event_type = 'purchase'
+GROUP BY brand;
+
+-- ❌ BAD: NULL values create empty groups
+SELECT brand, COUNT(*) as purchases
+FROM ecommerce
+WHERE event_type = 'purchase'
+GROUP BY brand;  -- Includes NULL brand rows
+```
+
+### 4. Use Firebolt's Query Optimizer
+```sql
+-- Get recommendations for your queries
+CALL RECOMMEND_DDL(
+  ecommerce,
+  (SELECT query_text FROM information_schema.engine_query_history
+   WHERE query_text ILIKE 'select%' 
+   AND end_time > NOW() - INTERVAL '30 minutes')
+);
+```
+
+## Test
+
+<TestButton label="Test Analytics Queries" message="Use the Analytics Demo to test all query types!" />
+
+**Test all queries:**
+- ✅ Revenue query returns total_revenue, total_purchases, unique_customers
+- ✅ Top products returns 10 products sorted by purchase_count
+- ✅ User behavior shows event counts by type
+- ✅ Category performance shows top 10 categories by revenue
+- ✅ Brand analysis shows top 10 brands by revenue
+- ✅ Customer growth shows monthly trends with growth_pct
+- ✅ Conversion funnel shows view/cart/purchase rates
+
+## Advanced: Add More Query Types
+
+Want to extend your analytics? Try adding:
+
+### Natural Language Queries (Self-Study)
+
+Add support for natural language queries using Gemini AI:
+
 ```typescript
-routeTask(intent: IntentResult): AgentType {
-  if (intent.intent === 'analytics') return 'analytics';
-  if (intent.intent === 'report') return 'report';
-  if (intent.intent === 'email') return 'email';
-  return 'unknown';
+async executeNaturalLanguageQuery(naturalLanguageQuery: string): Promise<{
+  success: boolean;
+  sql?: string;
+  result?: QueryResult;
+  error?: string;
+}> {
+  // Use Gemini to convert natural language to SQL
+  const prompt = `Convert this natural language query to SQL for the ${this.tableName} table: "${naturalLanguageQuery}"`;
+  const generatedSQL = await this.gemini.generate('gemini-2.0-flash', prompt);
+  
+  // Execute the generated SQL
+  const result = await this.mcpClient.execute(generatedSQL);
+  
+  return { success: true, sql: generatedSQL, result };
 }
 ```
 
----
+**Try it yourself:**
+- Initialize `GeminiService` in the constructor
+- Add schema information to the prompt
+- Clean up generated SQL (remove markdown code blocks)
+- Add error handling for invalid SQL
 
-## Summary
+### Revenue Time Series
+```typescript
+async getRevenueTimeSeries(interval: 'day' | 'week' | 'month' = 'day') {
+  const query = `
+    SELECT 
+      DATE_TRUNC('${interval}', event_time) as period,
+      SUM(price) as revenue,
+      COUNT(*) as transactions
+    FROM ${this.tableName}
+    WHERE event_type = 'purchase'
+    AND event_time > CURRENT_DATE - INTERVAL '90 days'
+    GROUP BY period
+    ORDER BY period DESC
+  `;
+  return await this.mcpClient.execute(query);
+}
+```
 
-You've built a complete **Orchestrator Agent** that:
-- ✅ Parses user intent with Gemini AI (already implemented)
-- ✅ Coordinates multiple agents (Analytics, Report)
-- ✅ Executes multi-step workflows (analytics → report → email)
-- ✅ Handles errors gracefully
-- ✅ Routes tasks to appropriate agents
-
-### Key Takeaways:
-1. **Intent parsing** is critical for understanding user requests
-2. **Sequential orchestration** ensures proper data flow between agents
-3. **Error handling** at each step prevents cascade failures
-4. **Modular design** makes it easy to add new agents
-
-Next step: Build the **Report Agent** to generate beautiful reports from analytics data!
+### Cohort Analysis
+```typescript
+async getCohortAnalysis() {
+  // Track customer retention by signup month
+  // Uses window functions and CTEs
+}
+```
