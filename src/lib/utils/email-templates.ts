@@ -216,8 +216,6 @@ function getBaseTemplate(content: string, title: string): string {
     </div>
     <div class="footer">
       <div class="footer-logos">
-        <span class="footer-logo-item">Google for Developers</span>
-        <span class="footer-divider">×</span>
         <span class="footer-logo-item">Firebolt</span>
         <span class="footer-divider">×</span>
         <span class="footer-logo-item">DevRelSquad</span>
