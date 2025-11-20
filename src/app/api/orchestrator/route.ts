@@ -3,25 +3,48 @@ import { OrchestratorAgent } from '@/lib/agents/orchestrator';
 
 export async function POST(request: NextRequest) {
   try {
-    // TODO: Exercise 4 - Implement Orchestrator API POST endpoint
-    //
-    // INSTRUCTIONS:
-    // 1. Extract query and action (default: 'parse') from request.json()
-    // 2. Validate that query is provided (return 400 error if not)
-    // 3. Validate GEMINI_API_KEY is configured (return 500 error if not)
-    // 4. Create OrchestratorAgent instance with apiKey
-    // 5. If action === 'execute' or 'multi_step':
-    //    - Call orchestrator.handleMultiStepQuery(query)
-    //    - Return JSON with: action: 'multi_step_execution', and spread result
-    // 6. Otherwise (default parse action):
-    //    - Call orchestrator.parseIntent(query)
-    //    - Call orchestrator.routeTask(intent)
-    //    - Return JSON with: success: true, action: 'intent_parsing', query, intent, route
-    // 7. Wrap in try-catch, return 500 error on exceptions
-    //
-    // HINT: See Step 6 Exercise 4 in the tutorial for full implementation
+    const { query, action = 'parse' } = await request.json();
     
-    throw new Error('TODO: Implement POST endpoint');
+    if (!query) {
+      return NextResponse.json(
+        { error: 'query parameter is required' }, 
+        { status: 400 }
+      );
+    }
+    
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey || apiKey === 'your_api_key_here') {
+      return NextResponse.json(
+        { 
+          error: 'GEMINI_API_KEY not configured. Please set it in your .env file.',
+          hint: 'Get your API key from https://aistudio.google.com'
+        }, 
+        { status: 500 }
+      );
+    }
+    
+    const orchestrator = new OrchestratorAgent(apiKey);
+    
+    // Support both intent parsing and multi-step execution
+    if (action === 'execute' || action === 'multi_step') {
+      const result = await orchestrator.handleMultiStepQuery(query);
+      return NextResponse.json({
+        action: 'multi_step_execution',
+        ...result
+      });
+    }
+    
+    // Default: parse intent and route
+    const intent = await orchestrator.parseIntent(query);
+    const route = orchestrator.routeTask(intent);
+    
+    return NextResponse.json({ 
+      success: true,
+      action: 'intent_parsing',
+      query,
+      intent, 
+      route 
+    });
   } catch (error: any) {
     console.error('Orchestrator API error:', error);
     return NextResponse.json(
@@ -62,5 +85,3 @@ export async function GET() {
     ]
   });
 }
-
-

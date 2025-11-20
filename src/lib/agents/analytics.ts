@@ -1,78 +1,6 @@
 import { FireboltMCPClient, QueryResult } from '@/lib/services/firebolt-mcp';
 import { GeminiService } from '@/lib/services/gemini';
 
-// Build pre-defined analytics queries for a given table name.
-function buildQueries(tableName: string): Record<string, string> {
-  return {
-    revenue: `
-      SELECT 
-        SUM(price) as total_revenue,
-        COUNT(*) as total_purchases,
-        COUNT(DISTINCT user_id) as unique_customers,
-        ROUND(SUM(price) / NULLIF(COUNT(DISTINCT user_id), 0), 2) as avg_revenue_per_customer
-      FROM ${tableName}
-      WHERE event_type = 'purchase' 
-      AND event_time > CURRENT_DATE - INTERVAL '30 days'
-    `,
-    top_products: `
-      SELECT 
-        product_id,
-        brand,
-        category_code,
-        COUNT(*) as purchase_count,
-        SUM(price) as total_revenue,
-        ROUND(AVG(price), 2) as avg_price
-      FROM ${tableName}
-      WHERE event_type = 'purchase'
-      AND event_time > CURRENT_DATE - INTERVAL '30 days'
-      GROUP BY product_id, brand, category_code
-      ORDER BY purchase_count DESC 
-      LIMIT 10
-    `,
-    user_behavior: `
-      SELECT 
-        event_type,
-        COUNT(*) as event_count,
-        COUNT(DISTINCT user_id) as unique_users,
-        COUNT(DISTINCT user_session) as unique_sessions
-      FROM ${tableName}
-      WHERE event_time > CURRENT_DATE - INTERVAL '7 days'
-      GROUP BY event_type
-      ORDER BY event_count DESC
-    `,
-    category_performance: `
-      SELECT 
-        category_code,
-        COUNT(*) as purchases,
-        SUM(price) as revenue,
-        ROUND(AVG(price), 2) as avg_price,
-        COUNT(DISTINCT user_id) as unique_customers
-      FROM ${tableName}
-      WHERE event_type = 'purchase'
-      AND category_code IS NOT NULL
-      AND event_time > CURRENT_DATE - INTERVAL '30 days'
-      GROUP BY category_code
-      ORDER BY revenue DESC
-      LIMIT 10
-    `,
-    brand_analysis: `
-      SELECT 
-        brand,
-        COUNT(*) as purchases,
-        SUM(price) as revenue,
-        ROUND(AVG(price), 2) as avg_price,
-        COUNT(DISTINCT user_id) as customers
-      FROM ${tableName}
-      WHERE event_type = 'purchase'
-      AND brand IS NOT NULL
-      AND event_time > CURRENT_DATE - INTERVAL '30 days'
-      GROUP BY brand
-      ORDER BY revenue DESC
-      LIMIT 10
-    `,
-  };
-}
-
 export class AnalyticsAgent {
   private mcpClient: FireboltMCPClient;
   private gemini: GeminiService;
@@ -123,9 +51,9 @@ export class AnalyticsAgent {
   }
 
   /**
-   * TODO: Exercise 1 - Implement executeQuery method
+   * ✅ COMPLETE: Execute pre-defined queries
    * 
-   * TASK: Execute pre-defined queries against the Firebolt FACT TABLE
+   * Executes optimized SQL queries against the Firebolt FACT TABLE.
    * 
    * SCHEMA NOTES:
    * - FACT TABLE provides automatic sparse indexing on all columns
@@ -133,52 +61,136 @@ export class AnalyticsAgent {
    * - NULLABLE: category_id, category_code, brand, price, user_id, user_session
    * - Always filter NULL fields (brand IS NOT NULL) to avoid empty results
    * - Use NULLIF in aggregations to prevent divide-by-zero errors
-   * 
-   * INSTRUCTIONS:
-   * 1. Create a Record<string, string> object called 'queries' with 5 query types
-   * 2. Implement the following queries:
-   *    - revenue: SUM(price), COUNT(*), COUNT(DISTINCT user_id), avg_revenue_per_customer
-   *    - top_products: Group by product_id, brand, category_code; ORDER BY purchase_count DESC LIMIT 10
-   *    - user_behavior: Group by event_type, show event_count, unique_users, unique_sessions
-   *    - category_performance: Group by category_code, show purchases, revenue, avg_price
-   *    - brand_analysis: Group by brand, show purchases, revenue, avg_price, customers
-   * 3. Validate queryType exists in queries object, throw error if not found
-   * 4. Execute the query using this.mcpClient.execute() and return the result
-   * 
-   * HINT: See Step 4 of the tutorial for full SQL query examples
    */
   async executeQuery(queryType: string): Promise<QueryResult> {
-    const queries = buildQueries(this.tableName);
+    const queries: Record<string, string> = {
+      revenue: `
+        SELECT 
+          ROUND(SUM(price), 2) as total_revenue,
+          COUNT(*) as total_purchases,
+          COUNT(DISTINCT user_id) as unique_customers,
+          ROUND(SUM(price) / NULLIF(COUNT(DISTINCT user_id), 0), 2) as avg_revenue_per_customer,
+          MIN(event_time) as period_start,
+          MAX(event_time) as period_end
+        FROM ${this.tableName}
+        WHERE event_type = 'purchase'
+        AND price IS NOT NULL
+      `,
+      top_products: `
+        SELECT 
+          product_id,
+          COALESCE(brand, 'Unknown') as brand,
+          COALESCE(category_code, 'Uncategorized') as category_code,
+          COUNT(*) as purchase_count,
+          ROUND(SUM(price), 2) as total_revenue,
+          ROUND(AVG(price), 2) as avg_price
+        FROM ${this.tableName}
+        WHERE event_type = 'purchase'
+        AND price IS NOT NULL
+        GROUP BY product_id, brand, category_code
+        ORDER BY purchase_count DESC 
+        LIMIT 10
+      `,
+      user_behavior: `
+        SELECT 
+          event_type,
+          COUNT(*) as event_count,
+          COUNT(DISTINCT user_id) as unique_users,
+          COUNT(DISTINCT user_session) as unique_sessions,
+          ROUND(AVG(CASE WHEN price IS NOT NULL THEN price ELSE 0 END), 2) as avg_price_when_present
+        FROM ${this.tableName}
+        GROUP BY event_type
+        ORDER BY event_count DESC
+      `,
+      category_performance: `
+        SELECT 
+          COALESCE(category_code, 'Uncategorized') as category_code,
+          COUNT(*) as purchases,
+          ROUND(SUM(price), 2) as revenue,
+          ROUND(AVG(price), 2) as avg_price,
+          COUNT(DISTINCT user_id) as unique_customers
+        FROM ${this.tableName}
+        WHERE event_type = 'purchase'
+        AND price IS NOT NULL
+        GROUP BY category_code
+        ORDER BY revenue DESC
+        LIMIT 10
+      `,
+      brand_analysis: `
+        SELECT 
+          COALESCE(brand, 'Unknown Brand') as brand,
+          COUNT(*) as purchases,
+          ROUND(SUM(price), 2) as revenue,
+          ROUND(AVG(price), 2) as avg_price,
+          COUNT(DISTINCT user_id) as customers
+        FROM ${this.tableName}
+        WHERE event_type = 'purchase'
+        AND price IS NOT NULL
+        GROUP BY brand
+        ORDER BY revenue DESC
+        LIMIT 10
+      `,
+    };
 
-    
+    if (!queries[queryType]) {
+      throw new Error(`Unknown query type: ${queryType}`);
+    }
 
-    throw new Error('TODO: Implement executeQuery method');
-}
-
-  /**
-   * TODO: Exercise 3 - Implement getCustomerGrowth method (OPTIONAL/ADVANCED)
-   * 
-   * TASK: Track month-over-month customer growth using SQL window functions
-   * 
-   * INSTRUCTIONS:
-   * 1. Use a CTE (WITH clause) to get unique customers per month
-   * 2. Use DATE_TRUNC('month', event_time) for monthly grouping
-   * 3. Use LAG() window function to get previous month's customer count
-   * 4. Calculate growth percentage: ((current - previous) / previous) * 100
-   * 5. Handle NULL cases (first month has no previous data)
-   * 6. Order by month DESC, limit to 12 months
-   * 
-   * HINT: See Step 4 Exercise 3 in the tutorial for complete implementation
-   */
-  async getCustomerGrowth(): Promise<QueryResult> {
-    // TODO: Implement customer growth analysis with window functions
-    throw new Error('TODO: Implement getCustomerGrowth method');
+    return await this.mcpClient.execute(queries[queryType]);
   }
 
+  /**
+   * ✅ COMPLETE: Customer growth query
+   * 
+   * Query that shows month-over-month customer growth
+   * - Calculate growth percentage
+   * - Handle edge cases (no data for a month)
+   */
+  async getCustomerGrowth(): Promise<QueryResult> {
+    const query = `
+      WITH monthly_customers AS (
+        SELECT
+          DATE_TRUNC('month', event_time) as month,
+          COUNT(DISTINCT user_id) as new_customers
+        FROM ${this.tableName}
+        WHERE event_type = 'purchase'
+        AND user_id IS NOT NULL
+        GROUP BY DATE_TRUNC('month', event_time)
+      )
+      SELECT
+        month,
+        new_customers,
+        LAG(new_customers) OVER (ORDER BY month) as prev_month_customers,
+        CASE 
+          WHEN LAG(new_customers) OVER (ORDER BY month) = 0 OR LAG(new_customers) OVER (ORDER BY month) IS NULL
+          THEN NULL
+          ELSE ROUND(
+            ((new_customers - LAG(new_customers) OVER (ORDER BY month))::NUMERIC 
+            / LAG(new_customers) OVER (ORDER BY month)) * 100, 2
+          )
+        END as growth_pct
+      FROM monthly_customers
+      ORDER BY month DESC
+      LIMIT 12
+    `;
+    
+    return await this.mcpClient.execute(query);
+  }
 
-
-
-
+  /**
+   * ✅ COMPLETE: Optimize slow queries
+   * 
+   * Optimize queries by:
+   * - Leveraging FACT TABLE automatic indexing
+   * - Using aggregating indexes for frequent queries
+   * - Proper NULL handling to avoid empty results
+   * - Materialized aggregate tables for dashboards
+   * 
+   * NOTE: The ecommerce table is already a FACT TABLE with automatic optimizations:
+   * - Sparse indexes on ALL columns (no manual creation needed)
+   * - Fast partition pruning on event_time
+   * - Optimized for analytical aggregations (SUM, COUNT, AVG)
+   */
   async optimizeQuery(query: string): Promise<string> {
     // Optimization plan for ecommerce FACT TABLE
     const optimizationPlan = `
@@ -269,22 +281,33 @@ Performance Impact:
   }
 
   /**
-   * TODO: Exercise 4 - Implement getConversionFunnel method (OPTIONAL/ADVANCED)
-   * 
-   * TASK: Conversion funnel analysis - tracks user journey from view → cart → purchase
-   * 
-   * INSTRUCTIONS:
-   * 1. Use CTE to group events by user_id and user_session
-   * 2. Use MAX(CASE WHEN event_type = 'view' THEN 1 ELSE 0 END) pattern for each event type
-   * 3. Calculate conversion rates at each funnel stage
-   * 4. Use NULLIF to prevent divide-by-zero errors
-   * 5. Return: total_views, total_cart_adds, total_purchases, and conversion rates
-   * 
-   * HINT: See Step 4 Exercise 4 in the tutorial for complete implementation
+   * Conversion funnel analysis
+   * Tracks user journey from view -> cart -> purchase
    */
   async getConversionFunnel(): Promise<QueryResult> {
-    // TODO: Implement conversion funnel analysis
-    throw new Error('TODO: Implement getConversionFunnel method');
+    const query = `
+      WITH funnel_data AS (
+        SELECT 
+          user_id,
+          user_session,
+          MAX(CASE WHEN event_type = 'view' THEN 1 ELSE 0 END) as viewed,
+          MAX(CASE WHEN event_type = 'cart' THEN 1 ELSE 0 END) as added_to_cart,
+          MAX(CASE WHEN event_type = 'purchase' THEN 1 ELSE 0 END) as purchased
+        FROM ${this.tableName}
+        WHERE user_id IS NOT NULL
+        GROUP BY user_id, user_session
+      )
+      SELECT 
+        SUM(viewed) as total_views,
+        SUM(added_to_cart) as total_cart_adds,
+        SUM(purchased) as total_purchases,
+        ROUND((SUM(added_to_cart)::NUMERIC / NULLIF(SUM(viewed), 0)) * 100, 2) as view_to_cart_rate,
+        ROUND((SUM(purchased)::NUMERIC / NULLIF(SUM(added_to_cart), 0)) * 100, 2) as cart_to_purchase_rate,
+        ROUND((SUM(purchased)::NUMERIC / NULLIF(SUM(viewed), 0)) * 100, 2) as overall_conversion_rate
+      FROM funnel_data
+    `;
+    
+    return await this.mcpClient.execute(query);
   }
 
   /**
@@ -401,5 +424,3 @@ SQL QUERY (only return the SQL, no markdown or explanations):`;
     }
   }
 }
-
-

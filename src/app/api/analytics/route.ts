@@ -3,24 +3,59 @@ import { AnalyticsAgent } from '@/lib/agents/analytics';
 
 export async function POST(request: NextRequest) {
   try {
-    // TODO: Exercise 2 - Implement Analytics API POST endpoint
-    //
-    // INSTRUCTIONS:
-    // 1. Extract queryType and naturalLanguageQuery from request.json()
-    // 2. Create a new AnalyticsAgent instance
-    // 3. If naturalLanguageQuery is provided:
-    //    - Call analytics.executeNaturalLanguageQuery(naturalLanguageQuery)
-    //    - Return JSON with: success, type: 'natural_language', query, sql, result, error
-    // 4. If queryType is provided:
-    //    - Validate it's one of: revenue, top_products, user_behavior, category_performance, brand_analysis
-    //    - Call analytics.executeQuery(queryType)
-    //    - Return JSON with: success: true, type: 'predefined', queryType, result
-    // 5. If neither is provided, return 400 error
-    // 6. Wrap in try-catch, return 500 error on exceptions
-    //
-    // HINT: See Step 4 Exercise 2 in the tutorial for full implementation
+    const { queryType, naturalLanguageQuery } = await request.json();
     
-    throw new Error('TODO: Implement POST endpoint');
+    const analytics = new AnalyticsAgent();
+    
+    // Handle natural language queries
+    if (naturalLanguageQuery) {
+      const result = await analytics.executeNaturalLanguageQuery(naturalLanguageQuery);
+      
+      return NextResponse.json({
+        success: result.success,
+        type: 'natural_language',
+        query: naturalLanguageQuery,
+        sql: result.sql,
+        result: result.result,
+        error: result.error,
+      });
+    }
+    
+    // Handle pre-defined queries
+    if (!queryType) {
+      return NextResponse.json(
+        { error: 'Either queryType or naturalLanguageQuery is required' }, 
+        { status: 400 }
+      );
+    }
+    
+    // Validate queryType
+    const validQueryTypes = [
+      'revenue',
+      'top_products',
+      'user_behavior',
+      'category_performance',
+      'brand_analysis'
+    ];
+    
+    if (!validQueryTypes.includes(queryType)) {
+      return NextResponse.json(
+        { 
+          error: `Invalid queryType. Must be one of: ${validQueryTypes.join(', ')}`,
+          validQueryTypes
+        }, 
+        { status: 400 }
+      );
+    }
+    
+    const result = await analytics.executeQuery(queryType);
+    
+    return NextResponse.json({ 
+      success: true,
+      type: 'predefined',
+      queryType,
+      result 
+    });
   } catch (error: any) {
     console.error('Analytics API error:', error);
     return NextResponse.json(
@@ -61,5 +96,3 @@ export async function GET() {
     ]
   });
 }
-
-
