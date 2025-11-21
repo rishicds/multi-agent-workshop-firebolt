@@ -13,6 +13,12 @@ objectives:
 import { CodeBlock } from '@/components/workshop/CodeBlock';
 import { Checkpoint } from '@/components/workshop/Checkpoint';
 
+{/* Prominent note for Replit users */}
+<div style={{border: '2px solid #f59e0b', background: '#fffbeb', padding: '1rem', borderRadius: '6px', marginBottom: '1rem'}}>
+   <strong style={{fontSize: '1.05rem'}}>⚠️ Important for Replit users:</strong>
+   <p style={{margin: '0.5rem 0 0'}}><strong>If you're running this workshop on Replit, add your environment credentials (for example: <code>GEMINI_API_KEY</code>, Firebolt and Gmail credentials) to Replit Secrets, then fully relaunch the Replit instance (stop and start / restart the repl). Without this, environment variables won't load and the app may not work correctly.</strong></p>
+</div>
+
 # Workshop Environment Setup
 
 Set up your local development environment for the multi-agent workshop.
